@@ -2,13 +2,20 @@ package org.wences.propiedadestermicas;
 
 import android.app.Activity;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.AnimationSet;
+import android.view.animation.TranslateAnimation;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -26,6 +33,13 @@ import java.util.Locale;
 import java.util.Map;
 
 public class MainActivity extends Activity {
+    private static final int COLOR_BG = 0xFFF3F7F8;
+    private static final int COLOR_TEXT = 0xFF132027;
+    private static final int COLOR_MUTED = 0xFF53636B;
+    private static final int COLOR_PRIMARY = 0xFF126782;
+    private static final int COLOR_SECONDARY = 0xFF0A9396;
+    private static final int COLOR_ACCENT = 0xFFE9C46A;
+
     private static final TableSpec[] TABLES = new TableSpec[] {
         new TableSpec(
             "water",
@@ -78,6 +92,7 @@ public class MainActivity extends Activity {
     };
 
     private final Map<String, PropertyTable> tables = new HashMap<>();
+    private LinearLayout pageLayout;
     private Spinner tableSpinner;
     private TextView inputLabel;
     private EditText temperatureInput;
@@ -86,9 +101,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setStatusBarColor(COLOR_PRIMARY);
         loadTables();
         buildUi();
         updateSelectedTable();
+        animateIntro();
     }
 
     private void loadTables() {
@@ -102,19 +119,93 @@ public class MainActivity extends Activity {
     }
 
     private void buildUi() {
-        int margin = dp(14);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(margin, margin, margin, margin);
-        root.setBackgroundColor(0xFFF5F7FA);
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(false);
+        scrollView.setBackgroundColor(COLOR_BG);
 
-        TextView title = new TextView(this);
-        title.setText("Propiedades termicas");
-        title.setTextSize(22);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setTextColor(0xFF111820);
-        title.setGravity(Gravity.CENTER);
-        root.addView(title, matchWrap());
+        pageLayout = new LinearLayout(this);
+        pageLayout.setOrientation(LinearLayout.VERTICAL);
+        pageLayout.setPadding(dp(16), dp(16), dp(16), dp(20));
+        scrollView.addView(pageLayout);
+
+        pageLayout.addView(heroSection(), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(purposeSection(), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(authorsSection(), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(calculatorSection(), matchWrap(0, 0, 0, 14));
+
+        resultsLayout = new LinearLayout(this);
+        resultsLayout.setOrientation(LinearLayout.VERTICAL);
+        pageLayout.addView(card(resultsLayout), matchWrap(0, 0, 0, 0));
+
+        tableSpinner.setOnItemSelectedListener(new SimpleItemSelectedListener(this::updateSelectedTable));
+        setContentView(scrollView);
+    }
+
+    private View heroSection() {
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setPadding(dp(18), dp(18), dp(18), dp(16));
+        hero.setBackground(gradient(0xFF0B4F6C, 0xFF0A9396, dp(8)));
+        hero.setElevation(dp(4));
+
+        LinearLayout brandRow = new LinearLayout(this);
+        brandRow.setOrientation(LinearLayout.HORIZONTAL);
+        brandRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(getResources().getIdentifier("ic_thermowences_logo", "drawable", getPackageName()));
+        brandRow.addView(logo, new LinearLayout.LayoutParams(dp(64), dp(64)));
+
+        LinearLayout brandText = new LinearLayout(this);
+        brandText.setOrientation(LinearLayout.VERTICAL);
+        brandText.setPadding(dp(12), 0, 0, 0);
+        brandText.addView(text("TermoWences", 27, 0xFFFFFFFF, true), compactWrap());
+        brandText.addView(text("Propiedades termicas para ingenieria", 14, 0xFFE8F7FA, false), compactWrap());
+        brandRow.addView(brandText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        hero.addView(brandRow, matchWrap(0, 0, 0, 14));
+
+        ImageView illustration = new ImageView(this);
+        illustration.setImageResource(getResources().getIdentifier("illustration_engineering", "drawable", getPackageName()));
+        illustration.setAdjustViewBounds(true);
+        illustration.setBackground(rounded(0x22FFFFFF, dp(8)));
+        illustration.setPadding(dp(10), dp(10), dp(10), dp(10));
+        hero.addView(illustration, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(150)));
+
+        TextView intro = text(
+            "Calcula propiedades de agua, aire seco y vapor saturado mediante interpolacion cubica, usando tablas CSV integradas en la app.",
+            15,
+            0xFFFFFFFF,
+            false
+        );
+        intro.setLineSpacing(0, 1.08f);
+        hero.addView(intro, matchWrap(0, dp(14), 0, 0));
+        return hero;
+    }
+
+    private View purposeSection() {
+        LinearLayout content = section("Para que sirve");
+        content.addView(body(
+            "TermoWences esta pensado como una herramienta academica y practica para consultar rapidamente propiedades termofisicas. " +
+            "Permite ingresar una temperatura, elegir la tabla correspondiente y obtener valores interpolados con orden y precision."
+        ), compactWrap());
+        content.addView(feature("Agua", "Presion de saturacion, densidad, viscosidad, difusividad y numero de Prandtl."));
+        content.addView(feature("Aire seco", "Propiedades para calculos de transferencia de calor y fluidos."));
+        content.addView(feature("Vapor saturado", "Presion, densidades, entalpias y entropias de referencia."));
+        return card(content);
+    }
+
+    private View authorsSection() {
+        LinearLayout content = section("Autores");
+        content.addView(body("Desarrollado para apoyar el analisis de propiedades termicas en ejercicios de ingenieria."), compactWrap());
+        content.addView(author("Wenceslao T. Medina Espinoza"));
+        content.addView(author("Miguel A. Molina Mansilla"));
+        content.addView(author("Edward Torres Cruz"));
+        content.addView(author("Alica Leon Tacca"));
+        return card(content);
+    }
+
+    private View calculatorSection() {
+        LinearLayout content = section("Calculadora");
 
         tableSpinner = new Spinner(this);
         String[] titles = new String[TABLES.length];
@@ -123,15 +214,20 @@ public class MainActivity extends Activity {
         }
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, titles);
         tableSpinner.setAdapter(adapter);
-        root.addView(tableSpinner, matchWrap());
+        tableSpinner.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD5E5EA, dp(8)));
+        content.addView(tableSpinner, matchWrap(0, dp(10), 0, 10));
 
-        inputLabel = label("");
-        root.addView(inputLabel, matchWrap());
+        inputLabel = text("", 14, COLOR_MUTED, true);
+        content.addView(inputLabel, compactWrap());
 
         temperatureInput = new EditText(this);
         temperatureInput.setHint("Ingrese temperatura");
         temperatureInput.setSingleLine(true);
         temperatureInput.setTextSize(18);
+        temperatureInput.setTextColor(COLOR_TEXT);
+        temperatureInput.setHintTextColor(0xFF7E8D94);
+        temperatureInput.setPadding(dp(12), 0, dp(12), 0);
+        temperatureInput.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD5E5EA, dp(8)));
         temperatureInput.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
         temperatureInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         temperatureInput.setOnEditorActionListener((view, actionId, event) -> {
@@ -141,30 +237,42 @@ public class MainActivity extends Activity {
             }
             return false;
         });
-        root.addView(temperatureInput, matchWrap());
+        content.addView(temperatureInput, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52)));
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setPadding(0, dp(14), 0, 0);
 
-        Button calculate = new Button(this);
-        calculate.setText("Calcular");
+        Button calculate = button("Calcular", COLOR_PRIMARY, 0xFFFFFFFF);
         calculate.setOnClickListener(view -> calculate());
-        buttons.addView(calculate, new LinearLayout.LayoutParams(0, dp(48), 1));
+        buttons.addView(calculate, weightedButton(0, 0, 6, 0));
 
-        Button clear = new Button(this);
-        clear.setText("Limpiar");
+        Button clear = button("Limpiar", 0xFFEAF3F5, COLOR_PRIMARY);
         clear.setOnClickListener(view -> clearResults());
-        buttons.addView(clear, new LinearLayout.LayoutParams(0, dp(48), 1));
-        root.addView(buttons, matchWrap());
+        buttons.addView(clear, weightedButton(6, 0, 0, 0));
+        content.addView(buttons, matchWrap(0, 0, 0, 0));
+        return card(content);
+    }
 
-        ScrollView scrollView = new ScrollView(this);
-        resultsLayout = new LinearLayout(this);
-        resultsLayout.setOrientation(LinearLayout.VERTICAL);
-        scrollView.addView(resultsLayout);
-        root.addView(scrollView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+    private LinearLayout section(String title) {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.addView(text(title, 20, COLOR_TEXT, true), compactWrap());
+        return content;
+    }
 
-        tableSpinner.setOnItemSelectedListener(new SimpleItemSelectedListener(this::updateSelectedTable));
-        setContentView(root);
+    private View feature(String title, String detail) {
+        TextView view = body(title + ": " + detail);
+        view.setPadding(dp(10), dp(9), dp(10), dp(9));
+        view.setBackground(rounded(0xFFF5FAFB, dp(8)));
+        return wrapWithMargin(view, 0, dp(8), 0, 0);
+    }
+
+    private View author(String name) {
+        TextView view = text(name, 15, COLOR_TEXT, true);
+        view.setPadding(dp(12), dp(9), dp(12), dp(9));
+        view.setBackground(roundedStroke(0xFFFFFFFF, 0xFFE1ECEF, dp(8)));
+        return wrapWithMargin(view, 0, dp(8), 0, 0);
     }
 
     private void updateSelectedTable() {
@@ -197,11 +305,7 @@ public class MainActivity extends Activity {
 
         Map<String, Double> values = table.calculate(temperature);
         resultsLayout.removeAllViews();
-
-        TextView heading = label(String.format(Locale.US, "%s a %.2f C", spec.title, temperature));
-        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        heading.setTextSize(18);
-        resultsLayout.addView(heading, matchWrap());
+        resultsLayout.addView(text(String.format(Locale.US, "%s a %.2f C", spec.title, temperature), 20, COLOR_TEXT, true), matchWrap(0, 0, 0, 8));
 
         for (PropertySpec prop : spec.properties) {
             Double value = values.get(prop.column);
@@ -209,13 +313,25 @@ public class MainActivity extends Activity {
                 continue;
             }
             String unit = prop.unit.isEmpty() ? "" : " " + prop.unit;
-            resultsLayout.addView(resultRow(prop.label, String.format(Locale.US, "%.4f%s", value, unit)), matchWrap());
+            resultsLayout.addView(resultRow(prop.label, String.format(Locale.US, "%.4f%s", value, unit)), matchWrap(0, 0, 0, 8));
         }
+        animateView(resultsLayout, 0);
     }
 
     private void clearResults() {
         resultsLayout.removeAllViews();
-        resultsLayout.addView(label("Seleccione una tabla e ingrese temperatura."), matchWrap());
+        resultsLayout.addView(text("Resultados", 20, COLOR_TEXT, true), matchWrap(0, 0, 0, 8));
+        resultsLayout.addView(body("Seleccione una tabla, ingrese una temperatura y presione Calcular."), compactWrap());
+    }
+
+    private View resultRow(String name, String value) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(12), dp(10), dp(12), dp(10));
+        row.setBackground(roundedStroke(0xFFFFFFFF, 0xFFE0EBEE, dp(8)));
+        row.addView(text(name, 14, COLOR_MUTED, false), compactWrap());
+        row.addView(text(value, 19, COLOR_PRIMARY, true), compactWrap());
+        return row;
     }
 
     private TableSpec selectedSpec() {
@@ -223,29 +339,102 @@ public class MainActivity extends Activity {
         return TABLES[index];
     }
 
-    private TextView label(String text) {
+    private View card(View child) {
+        LinearLayout wrapper = new LinearLayout(this);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+        wrapper.setPadding(dp(16), dp(16), dp(16), dp(16));
+        wrapper.setBackground(rounded(0xFFFFFFFF, dp(8)));
+        wrapper.setElevation(dp(3));
+        wrapper.addView(child, compactWrap());
+        return wrapper;
+    }
+
+    private TextView text(String value, int sp, int color, boolean bold) {
         TextView view = new TextView(this);
-        view.setText(text);
-        view.setTextColor(0xFF111820);
-        view.setTextSize(16);
-        view.setPadding(0, dp(8), 0, dp(8));
+        view.setText(value);
+        view.setTextColor(color);
+        view.setTextSize(sp);
+        view.setLineSpacing(0, 1.1f);
+        if (bold) {
+            view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        }
         return view;
     }
 
-    private TextView resultRow(String name, String value) {
-        TextView view = label(name + "\n" + value);
-        view.setBackgroundColor(0xFFFFFFFF);
-        view.setPadding(dp(10), dp(10), dp(10), dp(10));
-        return view;
+    private TextView body(String value) {
+        return text(value, 15, COLOR_MUTED, false);
     }
 
-    private LinearLayout.LayoutParams matchWrap() {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        params.setMargins(0, 0, 0, dp(10));
+    private Button button(String value, int background, int textColor) {
+        Button button = new Button(this);
+        button.setText(value);
+        button.setTextColor(textColor);
+        button.setTextSize(15);
+        button.setAllCaps(false);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setBackground(rounded(background, dp(8)));
+        return button;
+    }
+
+    private GradientDrawable rounded(int color, int radius) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(radius);
+        return drawable;
+    }
+
+    private GradientDrawable roundedStroke(int color, int strokeColor, int radius) {
+        GradientDrawable drawable = rounded(color, radius);
+        drawable.setStroke(dp(1), strokeColor);
+        return drawable;
+    }
+
+    private GradientDrawable gradient(int start, int end, int radius) {
+        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[] {start, end});
+        drawable.setCornerRadius(radius);
+        return drawable;
+    }
+
+    private LinearLayout.LayoutParams compactWrap() {
+        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    private LinearLayout.LayoutParams matchWrap(int left, int top, int right, int bottom) {
+        LinearLayout.LayoutParams params = compactWrap();
+        params.setMargins(left, top, right, bottom);
         return params;
+    }
+
+    private LinearLayout.LayoutParams weightedButton(int left, int top, int right, int bottom) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1);
+        params.setMargins(left, top, right, bottom);
+        return params;
+    }
+
+    private View wrapWithMargin(View child, int left, int top, int right, int bottom) {
+        LinearLayout wrapper = new LinearLayout(this);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+        wrapper.addView(child, compactWrap());
+        wrapper.setLayoutParams(matchWrap(left, top, right, bottom));
+        return wrapper;
+    }
+
+    private void animateIntro() {
+        for (int i = 0; i < pageLayout.getChildCount(); i++) {
+            animateView(pageLayout.getChildAt(i), i * 90L);
+        }
+    }
+
+    private void animateView(View view, long offset) {
+        AnimationSet set = new AnimationSet(true);
+        set.setInterpolator(new AccelerateDecelerateInterpolator());
+        set.setDuration(520);
+        set.setStartOffset(offset);
+        AlphaAnimation fade = new AlphaAnimation(0f, 1f);
+        TranslateAnimation slide = new TranslateAnimation(0, 0, dp(18), 0);
+        set.addAnimation(fade);
+        set.addAnimation(slide);
+        view.startAnimation(set);
     }
 
     private int dp(int value) {
