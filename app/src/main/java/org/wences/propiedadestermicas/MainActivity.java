@@ -8,6 +8,7 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.Window;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.AnimationSet;
@@ -108,7 +109,9 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(COLOR_PRIMARY);
+        Window window = getWindow();
+        window.setStatusBarColor(COLOR_PRIMARY);
+        window.setNavigationBarColor(0xFF101820);
         loadTables();
         buildUi();
         updateSelectedTable();
@@ -132,7 +135,7 @@ public class MainActivity extends Activity {
 
         pageLayout = new LinearLayout(this);
         pageLayout.setOrientation(LinearLayout.VERTICAL);
-        pageLayout.setPadding(dp(16), dp(16), dp(16), dp(20));
+        pageLayout.setPadding(dp(16), dp(34), dp(16), dp(72));
         scrollView.addView(pageLayout);
 
         pageLayout.addView(heroSection(), matchWrap(0, 0, 0, 14));
@@ -201,7 +204,7 @@ public class MainActivity extends Activity {
         presentationTab.setOnClickListener(view -> showModule(false));
         tabs.addView(presentationTab, weightedButton(0, 0, 5, 0));
 
-        calculatorTab = button("Modulo de calculo", 0xFFEAF3F5, COLOR_PRIMARY);
+        calculatorTab = button("Calcular", 0xFFEAF3F5, COLOR_PRIMARY);
         calculatorTab.setOnClickListener(view -> showModule(true));
         tabs.addView(calculatorTab, weightedButton(5, 0, 0, 0));
         return tabs;
@@ -249,7 +252,7 @@ public class MainActivity extends Activity {
     }
 
     private View calculatorSection() {
-        LinearLayout content = section("Modulo de calculo");
+        LinearLayout content = section("Calcular");
         content.addView(body("Selecciona el fluido, confirma el rango permitido e ingresa la temperatura."), matchWrap(0, dp(4), 0, 12));
 
         tableSpinner = new Spinner(this);
@@ -260,7 +263,7 @@ public class MainActivity extends Activity {
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, titles);
         tableSpinner.setAdapter(adapter);
         tableSpinner.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD5E5EA, dp(8)));
-        content.addView(tableSpinner, matchWrap(0, dp(10), 0, 10));
+        content.addView(tableSpinner, matchWrap(0, dp(10), 0, 8));
 
         tableDescription = body("");
         tableDescription.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -299,7 +302,7 @@ public class MainActivity extends Activity {
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         buttons.setPadding(0, dp(14), 0, 0);
 
-        Button calculate = button("Calcular propiedades", COLOR_PRIMARY, 0xFFFFFFFF);
+        Button calculate = button("Calcular", COLOR_PRIMARY, 0xFFFFFFFF);
         calculate.setOnClickListener(view -> calculate());
         buttons.addView(calculate, weightedButton(0, 0, 6, 0));
 
@@ -319,7 +322,8 @@ public class MainActivity extends Activity {
 
     private View feature(String title, String detail) {
         TextView view = body(title + ": " + detail);
-        view.setPadding(dp(10), dp(9), dp(10), dp(9));
+        view.setTextSize(14);
+        view.setPadding(dp(12), dp(10), dp(12), dp(10));
         view.setBackground(rounded(0xFFF5FAFB, dp(8)));
         return wrapWithMargin(view, 0, dp(8), 0, 0);
     }
@@ -390,10 +394,10 @@ public class MainActivity extends Activity {
     private View resultRow(String name, String value) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(12), dp(10), dp(12), dp(10));
+        row.setPadding(dp(12), dp(11), dp(12), dp(11));
         row.setBackground(roundedStroke(0xFFFFFFFF, 0xFFE0EBEE, dp(8)));
         row.addView(text(name, 14, COLOR_MUTED, false), compactWrap());
-        row.addView(text(value, 19, COLOR_PRIMARY, true), compactWrap());
+        row.addView(text(value, 18, COLOR_PRIMARY, true), compactWrap());
         return row;
     }
 
@@ -432,7 +436,7 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(value);
         button.setTextColor(textColor);
-        button.setTextSize(15);
+        button.setTextSize(14);
         button.setAllCaps(false);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setBackground(rounded(background, dp(8)));
