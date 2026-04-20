@@ -6,6 +6,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AlphaAnimation;
@@ -93,8 +94,14 @@ public class MainActivity extends Activity {
 
     private final Map<String, PropertyTable> tables = new HashMap<>();
     private LinearLayout pageLayout;
+    private LinearLayout presentationModule;
+    private LinearLayout calculatorModule;
+    private Button presentationTab;
+    private Button calculatorTab;
     private Spinner tableSpinner;
     private TextView inputLabel;
+    private TextView tableDescription;
+    private TextView tableRange;
     private EditText temperatureInput;
     private LinearLayout resultsLayout;
 
@@ -129,15 +136,16 @@ public class MainActivity extends Activity {
         scrollView.addView(pageLayout);
 
         pageLayout.addView(heroSection(), matchWrap(0, 0, 0, 14));
-        pageLayout.addView(purposeSection(), matchWrap(0, 0, 0, 14));
-        pageLayout.addView(authorsSection(), matchWrap(0, 0, 0, 14));
-        pageLayout.addView(calculatorSection(), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(moduleSwitch(), matchWrap(0, 0, 0, 14));
 
-        resultsLayout = new LinearLayout(this);
-        resultsLayout.setOrientation(LinearLayout.VERTICAL);
-        pageLayout.addView(card(resultsLayout), matchWrap(0, 0, 0, 0));
+        presentationModule = buildPresentationModule();
+        pageLayout.addView(presentationModule, matchWrap(0, 0, 0, 0));
+
+        calculatorModule = buildCalculatorModule();
+        pageLayout.addView(calculatorModule, matchWrap(0, 0, 0, 0));
 
         tableSpinner.setOnItemSelectedListener(new SimpleItemSelectedListener(this::updateSelectedTable));
+        showModule(false);
         setContentView(scrollView);
     }
 
@@ -172,7 +180,7 @@ public class MainActivity extends Activity {
         hero.addView(illustration, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(150)));
 
         TextView intro = text(
-            "Calcula propiedades de agua, aire seco y vapor saturado mediante interpolacion cubica, usando tablas CSV integradas en la app.",
+            "Consulta datos termicos de forma rapida, clara y ordenada para apoyar tus calculos de ingenieria.",
             15,
             0xFFFFFFFF,
             false
@@ -182,15 +190,51 @@ public class MainActivity extends Activity {
         return hero;
     }
 
+    private View moduleSwitch() {
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setPadding(dp(6), dp(6), dp(6), dp(6));
+        tabs.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD7E6EA, dp(8)));
+        tabs.setElevation(dp(2));
+
+        presentationTab = button("Presentacion", COLOR_PRIMARY, 0xFFFFFFFF);
+        presentationTab.setOnClickListener(view -> showModule(false));
+        tabs.addView(presentationTab, weightedButton(0, 0, 5, 0));
+
+        calculatorTab = button("Modulo de calculo", 0xFFEAF3F5, COLOR_PRIMARY);
+        calculatorTab.setOnClickListener(view -> showModule(true));
+        tabs.addView(calculatorTab, weightedButton(5, 0, 0, 0));
+        return tabs;
+    }
+
+    private LinearLayout buildPresentationModule() {
+        LinearLayout module = new LinearLayout(this);
+        module.setOrientation(LinearLayout.VERTICAL);
+        module.addView(purposeSection(), matchWrap(0, 0, 0, 14));
+        module.addView(authorsSection(), matchWrap(0, 0, 0, 0));
+        return module;
+    }
+
+    private LinearLayout buildCalculatorModule() {
+        LinearLayout module = new LinearLayout(this);
+        module.setOrientation(LinearLayout.VERTICAL);
+        module.addView(calculatorSection(), matchWrap(0, 0, 0, 14));
+
+        resultsLayout = new LinearLayout(this);
+        resultsLayout.setOrientation(LinearLayout.VERTICAL);
+        module.addView(card(resultsLayout), matchWrap(0, 0, 0, 0));
+        return module;
+    }
+
     private View purposeSection() {
         LinearLayout content = section("Para que sirve");
         content.addView(body(
-            "TermoWences esta pensado como una herramienta academica y practica para consultar rapidamente propiedades termofisicas. " +
-            "Permite ingresar una temperatura, elegir la tabla correspondiente y obtener valores interpolados con orden y precision."
+            "TermoWences ayuda a obtener propiedades termicas a partir de una temperatura. " +
+            "Elige el fluido, ingresa el valor y revisa los resultados listos para usar en tus calculos."
         ), compactWrap());
-        content.addView(feature("Agua", "Presion de saturacion, densidad, viscosidad, difusividad y numero de Prandtl."));
-        content.addView(feature("Aire seco", "Propiedades para calculos de transferencia de calor y fluidos."));
-        content.addView(feature("Vapor saturado", "Presion, densidades, entalpias y entropias de referencia."));
+        content.addView(feature("Uso principal", "Consulta rapida para ejercicios de termodinamica, fluidos y transferencia de calor."));
+        content.addView(feature("Entrada simple", "Solo necesitas seleccionar el material e ingresar la temperatura."));
+        content.addView(feature("Salida ordenada", "Los resultados se muestran con nombre, valor y unidad."));
         return card(content);
     }
 
@@ -205,7 +249,8 @@ public class MainActivity extends Activity {
     }
 
     private View calculatorSection() {
-        LinearLayout content = section("Calculadora");
+        LinearLayout content = section("Modulo de calculo");
+        content.addView(body("Selecciona el fluido, confirma el rango permitido e ingresa la temperatura."), matchWrap(0, dp(4), 0, 12));
 
         tableSpinner = new Spinner(this);
         String[] titles = new String[TABLES.length];
@@ -216,6 +261,17 @@ public class MainActivity extends Activity {
         tableSpinner.setAdapter(adapter);
         tableSpinner.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD5E5EA, dp(8)));
         content.addView(tableSpinner, matchWrap(0, dp(10), 0, 10));
+
+        tableDescription = body("");
+        tableDescription.setPadding(dp(12), dp(10), dp(12), dp(10));
+        tableDescription.setBackground(rounded(0xFFF5FAFB, dp(8)));
+        content.addView(tableDescription, matchWrap(0, 0, 0, 8));
+
+        tableRange = text("", 14, COLOR_PRIMARY, true);
+        tableRange.setGravity(Gravity.CENTER);
+        tableRange.setPadding(dp(10), dp(8), dp(10), dp(8));
+        tableRange.setBackground(roundedStroke(0xFFFFF7DF, 0xFFE9C46A, dp(8)));
+        content.addView(tableRange, matchWrap(0, 0, 0, 12));
 
         inputLabel = text("", 14, COLOR_MUTED, true);
         content.addView(inputLabel, compactWrap());
@@ -243,7 +299,7 @@ public class MainActivity extends Activity {
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         buttons.setPadding(0, dp(14), 0, 0);
 
-        Button calculate = button("Calcular", COLOR_PRIMARY, 0xFFFFFFFF);
+        Button calculate = button("Calcular propiedades", COLOR_PRIMARY, 0xFFFFFFFF);
         calculate.setOnClickListener(view -> calculate());
         buttons.addView(calculate, weightedButton(0, 0, 6, 0));
 
@@ -277,9 +333,16 @@ public class MainActivity extends Activity {
 
     private void updateSelectedTable() {
         TableSpec spec = selectedSpec();
+        PropertyTable table = tables.get(spec.key);
         inputLabel.setText(spec.inputLabel);
+        tableDescription.setText(descriptionFor(spec.key));
+        if (table != null) {
+            tableRange.setText(String.format(Locale.US, "Rango disponible: %.2f C a %.2f C", table.minTemperature(), table.maxTemperature()));
+        }
         temperatureInput.setText("");
         clearResults();
+        animateView(tableDescription, 0);
+        animateView(tableRange, 80);
     }
 
     private void calculate() {
@@ -373,7 +436,39 @@ public class MainActivity extends Activity {
         button.setAllCaps(false);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setBackground(rounded(background, dp(8)));
+        button.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                view.animate().scaleX(0.97f).scaleY(0.97f).setDuration(90).start();
+            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                view.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
+            }
+            return false;
+        });
         return button;
+    }
+
+    private String descriptionFor(String key) {
+        if ("water".equals(key)) {
+            return "Agua: ideal para revisar propiedades como presion de saturacion, densidad, viscosidad y Prandtl.";
+        }
+        if ("air".equals(key)) {
+            return "Aire seco: util para estimaciones de conveccion, difusividad, viscosidad y transferencia de calor.";
+        }
+        return "Vapor saturado: consulta propiedades de referencia como presion, densidades, entalpias y entropias.";
+    }
+
+    private void showModule(boolean calculator) {
+        if (presentationModule == null || calculatorModule == null) {
+            return;
+        }
+        presentationModule.setVisibility(calculator ? View.GONE : View.VISIBLE);
+        calculatorModule.setVisibility(calculator ? View.VISIBLE : View.GONE);
+
+        presentationTab.setBackground(rounded(calculator ? 0xFFEAF3F5 : COLOR_PRIMARY, dp(8)));
+        presentationTab.setTextColor(calculator ? COLOR_PRIMARY : 0xFFFFFFFF);
+        calculatorTab.setBackground(rounded(calculator ? COLOR_PRIMARY : 0xFFEAF3F5, dp(8)));
+        calculatorTab.setTextColor(calculator ? 0xFFFFFFFF : COLOR_PRIMARY);
+        animateView(calculator ? calculatorModule : presentationModule, 0);
     }
 
     private GradientDrawable rounded(int color, int radius) {
