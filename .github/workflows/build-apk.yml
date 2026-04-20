@@ -17,63 +17,32 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
-          python-version: "3.11"
+          distribution: temurin
+          java-version: "17"
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            autoconf \
-            automake \
-            build-essential \
-            ccache \
-            cmake \
-            git \
-            libarchive-tools \
-            libffi-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libssl-dev \
-            libtool \
-            openjdk-17-jdk \
-            pkg-config \
-            unzip \
-            zip \
-            zlib1g-dev
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
 
-      - name: Install Buildozer
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install buildozer "Cython<3"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Install Android NDK r25b
-        run: |
-          mkdir -p "$HOME/.buildozer/android/platform"
-          cd "$HOME/.buildozer/android/platform"
-          curl -L https://dl.google.com/android/repository/android-ndk-r25b-linux.zip -o android-ndk-r25b-linux.zip
-          rm -rf android-ndk-r25b
-          bsdtar -xf android-ndk-r25b-linux.zip
-          test -x android-ndk-r25b/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null || true
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build debug APK
-        run: |
-          set -o pipefail
-          buildozer -v android debug 2>&1 | tee buildozer-last.log
+        run: gradle :app:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: propiedades-termicas-debug-apk
-          path: bin/*.apk
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: buildozer-log
-          path: buildozer-last.log
-          if-no-files-found: ignore

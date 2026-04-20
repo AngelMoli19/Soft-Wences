@@ -24,7 +24,28 @@ Ejecutar:
 python main.py
 ```
 
-## Generar APK
+## Generar APK con GitHub Actions
+
+La ruta recomendada es GitHub Actions. El repositorio incluye una app Android
+nativa que usa los mismos CSV y genera el APK con Gradle.
+
+1. Subir el proyecto a GitHub.
+2. Entrar al repositorio en GitHub.
+3. Abrir la pestana `Actions`.
+4. Seleccionar `Build Android APK`.
+5. Presionar `Run workflow` si no se ejecuto automaticamente.
+6. Cuando termine en verde, abrir la ejecucion y descargar el artefacto
+   `propiedades-termicas-debug-apk`.
+
+El workflow esta en:
+
+```text
+.github/workflows/build-apk.yml
+```
+
+El APK queda dentro del ZIP descargado desde GitHub Actions.
+
+## Generar APK con Buildozer
 
 Buildozer trabaja mejor en Linux o WSL. En Windows, usar Ubuntu en WSL.
 
@@ -49,29 +70,10 @@ source ~/.venvs/buildozer/bin/activate
 buildozer -v android debug
 ```
 
-El APK generado queda en:
+El APK generado por Buildozer queda en:
 
 ```text
 bin/
-```
-
-## Generar APK con GitHub Actions
-
-Esta es la ruta recomendada si WSL falla o si se quiere generar el APK en un
-Linux limpio.
-
-1. Subir el proyecto a un repositorio de GitHub.
-2. Entrar al repositorio en GitHub.
-3. Abrir la pestana `Actions`.
-4. Seleccionar `Build Android APK`.
-5. Presionar `Run workflow`.
-6. Cuando termine, abrir la ejecucion y descargar el artefacto
-   `propiedades-termicas-debug-apk`.
-
-El workflow esta en:
-
-```text
-.github/workflows/build-apk.yml
 ```
 
 Si la compilacion local falla con `pyjnius` y un error de `long`, significa que
