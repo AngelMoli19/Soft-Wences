@@ -10,6 +10,8 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-22.04
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout project
@@ -47,8 +49,19 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install buildozer "Cython<3"
 
+      - name: Install Android NDK r25b
+        run: |
+          mkdir -p "$HOME/.buildozer/android/platform"
+          cd "$HOME/.buildozer/android/platform"
+          curl -L https://dl.google.com/android/repository/android-ndk-r25b-linux.zip -o android-ndk-r25b-linux.zip
+          rm -rf android-ndk-r25b
+          bsdtar -xf android-ndk-r25b-linux.zip
+          test -x android-ndk-r25b/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
+
       - name: Build debug APK
-        run: buildozer -v android debug
+        run: |
+          set -o pipefail
+          buildozer -v android debug 2>&1 | tee buildozer-last.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -56,3 +69,11 @@ jobs:
           name: propiedades-termicas-debug-apk
           path: bin/*.apk
           if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-log
+          path: buildozer-last.log
+          if-no-files-found: ignore

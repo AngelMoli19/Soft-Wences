@@ -17,3 +17,6 @@ env/
 *.apk
 *.aab
 *.log
+github-job.html
+actions-log/
+actions-log.zip
