@@ -16,6 +16,7 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AlphaAnimation;
@@ -46,12 +47,16 @@ import java.util.Locale;
 import java.util.Map;
 
 public class MainActivity extends Activity {
-    private static final int COLOR_BG = 0xFFF3F7F8;
-    private static final int COLOR_TEXT = 0xFF132027;
-    private static final int COLOR_MUTED = 0xFF53636B;
-    private static final int COLOR_PRIMARY = 0xFF126782;
-    private static final int COLOR_SECONDARY = 0xFF0A9396;
-    private static final int COLOR_ACCENT = 0xFFE9C46A;
+    private static final int COLOR_BG = 0xFF101416;
+    private static final int COLOR_SURFACE = 0xFF171D21;
+    private static final int COLOR_SURFACE_2 = 0xFF20282D;
+    private static final int COLOR_BORDER = 0xFF2C383E;
+    private static final int COLOR_TEXT = 0xFFF3F6F7;
+    private static final int COLOR_MUTED = 0xFFA7B2B7;
+    private static final int COLOR_PRIMARY = 0xFF5DA399;
+    private static final int COLOR_SECONDARY = 0xFF5B8FA3;
+    private static final int COLOR_ACCENT = 0xFFC6A15B;
+    private static final int COLOR_DANGER = 0xFFB85C5C;
     private static final int REQUEST_CREATE_PDF = 701;
     private static final String HISTORY_PREFS = "thermowences_history";
     private static final String HISTORY_KEY = "records";
@@ -112,20 +117,16 @@ public class MainActivity extends Activity {
 
     private final Map<String, PropertyTable> tables = new HashMap<>();
     private LinearLayout pageLayout;
-    private LinearLayout presentationModule;
-    private LinearLayout calculatorModule;
-    private Button presentationTab;
-    private Button calculatorTab;
     private Spinner tableSpinner;
     private TextView inputLabel;
     private TextView tableDescription;
     private TextView tableRange;
-    private Spinner graphPropertySpinner;
-    private Spinner graphRangeSpinner;
-    private ThermoChartView chartView;
     private EditText temperatureInput;
     private LinearLayout resultsLayout;
     private LinearLayout historyLayout;
+    private View resultsCard;
+    private Button exportPdfButton;
+    private boolean ignoreNextTableSelection = false;
     private final List<CalculationRecord> history = new ArrayList<>();
     private final List<String> lastPdfLines = new ArrayList<>();
     private final List<ResultEntry> lastPdfEntries = new ArrayList<>();
@@ -137,13 +138,11 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Window window = getWindow();
-        window.setStatusBarColor(COLOR_PRIMARY);
-        window.setNavigationBarColor(0xFF101820);
+        window.setStatusBarColor(COLOR_BG);
+        window.setNavigationBarColor(0xFF0B0E10);
         loadTables();
         loadHistory();
         buildUi();
-        updateSelectedTable();
-        animateIntro();
     }
 
     private void loadTables() {
@@ -163,28 +162,136 @@ public class MainActivity extends Activity {
 
         pageLayout = new LinearLayout(this);
         pageLayout.setOrientation(LinearLayout.VERTICAL);
-        pageLayout.setPadding(dp(16), dp(34), dp(16), dp(72));
+        pageLayout.setPadding(dp(16), dp(32), dp(16), dp(86));
         scrollView.addView(pageLayout);
-
-        pageLayout.addView(heroSection(), matchWrap(0, 0, 0, 14));
-        pageLayout.addView(moduleSwitch(), matchWrap(0, 0, 0, 14));
-
-        presentationModule = buildPresentationModule();
-        pageLayout.addView(presentationModule, matchWrap(0, 0, 0, 0));
-
-        calculatorModule = buildCalculatorModule();
-        pageLayout.addView(calculatorModule, matchWrap(0, 0, 0, 0));
-
-        tableSpinner.setOnItemSelectedListener(new SimpleItemSelectedListener(this::updateSelectedTable));
-        showModule(false);
         setContentView(scrollView);
+        showMainMenu();
+    }
+
+    private void showMainMenu() {
+        pageLayout.removeAllViews();
+        pageLayout.addView(heroSection(), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(menuActions(), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(menuSummary(), matchWrap(0, 0, 0, 0));
+        animateIntro();
+    }
+
+    private View menuActions() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.addView(text("Panel principal", 20, COLOR_TEXT, true), compactWrap());
+        content.addView(body("Accede a las herramientas de consulta, revisa cálculos previos o consulta la información del proyecto."), matchWrap(0, dp(4), 0, 12));
+
+        Button calculate = button("Calcular propiedades", COLOR_PRIMARY, 0xFF07100F);
+        calculate.setTextSize(15);
+        calculate.setOnClickListener(view -> showCalculatorScreen());
+        content.addView(calculate, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(54)));
+
+        LinearLayout secondary = new LinearLayout(this);
+        secondary.setOrientation(LinearLayout.HORIZONTAL);
+        secondary.setPadding(0, dp(10), 0, 0);
+
+        Button historyButton = button("Historial", COLOR_SURFACE_2, COLOR_TEXT);
+        historyButton.setOnClickListener(view -> showHistoryScreen());
+        secondary.addView(historyButton, weightedButton(0, 0, 5, 0));
+
+        Button aboutButton = button("Acerca de", COLOR_SURFACE_2, COLOR_TEXT);
+        aboutButton.setOnClickListener(view -> showAboutScreen());
+        secondary.addView(aboutButton, weightedButton(5, 0, 0, 0));
+        content.addView(secondary, compactWrap());
+        return card(content);
+    }
+
+    private View menuSummary() {
+        LinearLayout content = section("Trabajo rápido");
+        content.addView(feature("Entrada", "selecciona agua, aire seco o vapor saturado e ingresa temperatura."));
+        content.addView(feature("Salida", "valores interpolados, explicación breve y gráfico técnico por propiedad."));
+        content.addView(feature("Reporte", "exporta un PDF con resultados y gráficos ordenados por cálculo."));
+        return card(content);
+    }
+
+    private void showCalculatorScreen() {
+        pageLayout.removeAllViews();
+        pageLayout.addView(screenHeader("Calcular", "Consulta propiedades y revisa gráficos individuales por resultado."), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(calculatorSection(), matchWrap(0, 0, 0, 14));
+
+        resultsLayout = new LinearLayout(this);
+        resultsLayout.setOrientation(LinearLayout.VERTICAL);
+        resultsCard = card(resultsLayout);
+        pageLayout.addView(resultsCard, matchWrap(0, 0, 0, 0));
+
+        setSpinnerToTable(lastTableKey);
+        updateSelectedTable(false);
+        ignoreNextTableSelection = true;
+        tableSpinner.setOnItemSelectedListener(new SimpleItemSelectedListener(() -> {
+            if (ignoreNextTableSelection) {
+                ignoreNextTableSelection = false;
+                return;
+            }
+            updateSelectedTable(true);
+        }));
+        tableSpinner.post(() -> ignoreNextTableSelection = false);
+        if (!Double.isNaN(lastTemperature)) {
+            temperatureInput.setText(String.format(Locale.US, "%.2f", lastTemperature));
+        }
+        if (lastPdfEntries.isEmpty()) {
+            resultsCard.setVisibility(View.GONE);
+        } else {
+            renderCurrentResults();
+        }
+        animateIntro();
+    }
+
+    private void showHistoryScreen() {
+        pageLayout.removeAllViews();
+        pageLayout.addView(screenHeader("Historial", "Reabre, exporta o elimina cálculos guardados."), matchWrap(0, 0, 0, 14));
+        historyLayout = new LinearLayout(this);
+        historyLayout.setOrientation(LinearLayout.VERTICAL);
+        pageLayout.addView(card(historyLayout), matchWrap(0, 0, 0, 0));
+        renderHistory();
+        animateIntro();
+    }
+
+    private void showAboutScreen() {
+        pageLayout.removeAllViews();
+        pageLayout.addView(screenHeader("Acerca de", "Información académica y alcance del software."), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(purposeSection(), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(authorsSection(), matchWrap(0, 0, 0, 0));
+        animateIntro();
+    }
+
+    private View screenHeader(String title, String subtitle) {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+
+        Button back = button("Volver al menú", COLOR_SURFACE_2, COLOR_TEXT);
+        back.setOnClickListener(view -> showMainMenu());
+        content.addView(back, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)));
+
+        TextView titleView = text(title, 26, COLOR_TEXT, true);
+        titleView.setPadding(0, dp(14), 0, 0);
+        content.addView(titleView, compactWrap());
+        content.addView(body(subtitle), matchWrap(0, dp(4), 0, 0));
+        return card(content);
+    }
+
+    private void setSpinnerToTable(String tableKey) {
+        if (tableSpinner == null || tableKey == null || tableKey.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < TABLES.length; i++) {
+            if (TABLES[i].key.equals(tableKey)) {
+                tableSpinner.setSelection(i);
+                return;
+            }
+        }
     }
 
     private View heroSection() {
         LinearLayout hero = new LinearLayout(this);
         hero.setOrientation(LinearLayout.VERTICAL);
         hero.setPadding(dp(18), dp(18), dp(18), dp(16));
-        hero.setBackground(gradient(0xFF0B4F6C, 0xFF0A9396, dp(8)));
+        hero.setBackground(gradient(0xFF12191D, 0xFF224943, dp(8)));
         hero.setElevation(dp(4));
 
         LinearLayout brandRow = new LinearLayout(this);
@@ -199,67 +306,26 @@ public class MainActivity extends Activity {
         brandText.setOrientation(LinearLayout.VERTICAL);
         brandText.setPadding(dp(12), 0, 0, 0);
         brandText.addView(text("TermoWences", 27, 0xFFFFFFFF, true), compactWrap());
-        brandText.addView(text("Propiedades térmicas para ingeniería", 14, 0xFFE8F7FA, false), compactWrap());
+        brandText.addView(text("Propiedades térmicas para ingeniería", 14, COLOR_MUTED, false), compactWrap());
         brandRow.addView(brandText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         hero.addView(brandRow, matchWrap(0, 0, 0, 14));
 
         ImageView illustration = new ImageView(this);
         illustration.setImageResource(getResources().getIdentifier("illustration_engineering", "drawable", getPackageName()));
         illustration.setAdjustViewBounds(true);
-        illustration.setBackground(rounded(0x22FFFFFF, dp(8)));
+        illustration.setBackground(roundedStroke(0x222F8F83, 0x334A7771, dp(8)));
         illustration.setPadding(dp(10), dp(10), dp(10), dp(10));
         hero.addView(illustration, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(150)));
 
         TextView intro = text(
             "Consulta datos térmicos de forma rápida, clara y ordenada para apoyar tus cálculos de ingeniería.",
             15,
-            0xFFFFFFFF,
+            COLOR_TEXT,
             false
         );
         intro.setLineSpacing(0, 1.08f);
         hero.addView(intro, matchWrap(0, dp(14), 0, 0));
         return hero;
-    }
-
-    private View moduleSwitch() {
-        LinearLayout tabs = new LinearLayout(this);
-        tabs.setOrientation(LinearLayout.HORIZONTAL);
-        tabs.setPadding(dp(6), dp(6), dp(6), dp(6));
-        tabs.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD7E6EA, dp(8)));
-        tabs.setElevation(dp(2));
-
-        presentationTab = button("Presentación", COLOR_PRIMARY, 0xFFFFFFFF);
-        presentationTab.setOnClickListener(view -> showModule(false));
-        tabs.addView(presentationTab, weightedButton(0, 0, 5, 0));
-
-        calculatorTab = button("Calcular", 0xFFEAF3F5, COLOR_PRIMARY);
-        calculatorTab.setOnClickListener(view -> showModule(true));
-        tabs.addView(calculatorTab, weightedButton(5, 0, 0, 0));
-        return tabs;
-    }
-
-    private LinearLayout buildPresentationModule() {
-        LinearLayout module = new LinearLayout(this);
-        module.setOrientation(LinearLayout.VERTICAL);
-        module.addView(purposeSection(), matchWrap(0, 0, 0, 14));
-        module.addView(authorsSection(), matchWrap(0, 0, 0, 0));
-        return module;
-    }
-
-    private LinearLayout buildCalculatorModule() {
-        LinearLayout module = new LinearLayout(this);
-        module.setOrientation(LinearLayout.VERTICAL);
-        module.addView(calculatorSection(), matchWrap(0, 0, 0, 14));
-        module.addView(graphSection(), matchWrap(0, 0, 0, 14));
-
-        resultsLayout = new LinearLayout(this);
-        resultsLayout.setOrientation(LinearLayout.VERTICAL);
-        module.addView(card(resultsLayout), matchWrap(0, 0, 0, 0));
-
-        historyLayout = new LinearLayout(this);
-        historyLayout.setOrientation(LinearLayout.VERTICAL);
-        module.addView(card(historyLayout), matchWrap(0, dp(14), 0, 0));
-        return module;
     }
 
     private View purposeSection() {
@@ -293,20 +359,20 @@ public class MainActivity extends Activity {
         for (int i = 0; i < TABLES.length; i++) {
             titles[i] = TABLES[i].title;
         }
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, titles);
+        ArrayAdapter<String> adapter = spinnerAdapter(titles);
         tableSpinner.setAdapter(adapter);
-        tableSpinner.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD5E5EA, dp(8)));
+        tableSpinner.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
         content.addView(tableSpinner, matchWrap(0, dp(10), 0, 8));
 
         tableDescription = body("");
         tableDescription.setPadding(dp(12), dp(10), dp(12), dp(10));
-        tableDescription.setBackground(rounded(0xFFF5FAFB, dp(8)));
+        tableDescription.setBackground(roundedStroke(0xFF1D262A, COLOR_BORDER, dp(8)));
         content.addView(tableDescription, matchWrap(0, 0, 0, 8));
 
         tableRange = text("", 14, COLOR_PRIMARY, true);
         tableRange.setGravity(Gravity.CENTER);
         tableRange.setPadding(dp(10), dp(8), dp(10), dp(8));
-        tableRange.setBackground(roundedStroke(0xFFFFF7DF, 0xFFE9C46A, dp(8)));
+        tableRange.setBackground(roundedStroke(0xFF242416, COLOR_ACCENT, dp(8)));
         content.addView(tableRange, matchWrap(0, 0, 0, 12));
 
         inputLabel = text("", 14, COLOR_MUTED, true);
@@ -317,9 +383,9 @@ public class MainActivity extends Activity {
         temperatureInput.setSingleLine(true);
         temperatureInput.setTextSize(18);
         temperatureInput.setTextColor(COLOR_TEXT);
-        temperatureInput.setHintTextColor(0xFF7E8D94);
+        temperatureInput.setHintTextColor(COLOR_MUTED);
         temperatureInput.setPadding(dp(12), 0, dp(12), 0);
-        temperatureInput.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD5E5EA, dp(8)));
+        temperatureInput.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
         temperatureInput.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
         temperatureInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         temperatureInput.setOnEditorActionListener((view, actionId, event) -> {
@@ -331,47 +397,14 @@ public class MainActivity extends Activity {
         });
         content.addView(temperatureInput, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52)));
 
-        LinearLayout buttons = new LinearLayout(this);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
-        buttons.setPadding(0, dp(14), 0, 0);
-
-        Button calculate = button("Calcular", COLOR_PRIMARY, 0xFFFFFFFF);
+        Button calculate = button("Calcular", COLOR_PRIMARY, 0xFF07100F);
+        calculate.setTextSize(16);
         calculate.setOnClickListener(view -> calculate());
-        buttons.addView(calculate, weightedButton(0, 0, 6, 0));
+        content.addView(calculate, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(54)));
 
-        Button clear = button("Limpiar", 0xFFEAF3F5, COLOR_PRIMARY);
+        Button clear = button("Limpiar entrada", COLOR_SURFACE_2, COLOR_TEXT);
         clear.setOnClickListener(view -> clearResults());
-        buttons.addView(clear, weightedButton(6, 0, 0, 0));
-        content.addView(buttons, matchWrap(0, 0, 0, 0));
-
-        Button exportPdf = button("Exportar PDF", 0xFFFFF7DF, COLOR_PRIMARY);
-        exportPdf.setOnClickListener(view -> exportPdf());
-        content.addView(exportPdf, matchWrap(0, dp(10), 0, 0));
-        return card(content);
-    }
-
-    private View graphSection() {
-        LinearLayout content = section("Grafico");
-        content.addView(body("Observa cómo cambia una propiedad con la temperatura."), matchWrap(0, dp(4), 0, 12));
-
-        graphPropertySpinner = new Spinner(this);
-        graphPropertySpinner.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD5E5EA, dp(8)));
-        graphPropertySpinner.setOnItemSelectedListener(new SimpleItemSelectedListener(this::updateGraph));
-        content.addView(graphPropertySpinner, matchWrap(0, 0, 0, 10));
-
-        graphRangeSpinner = new Spinner(this);
-        graphRangeSpinner.setBackground(roundedStroke(0xFFFFFFFF, 0xFFD5E5EA, dp(8)));
-        graphRangeSpinner.setAdapter(new ArrayAdapter<>(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            new String[] {"Todo el rango", "Cerca del calculo", "0 C a 100 C", "100 C a 200 C", "200 C a 250 C"}
-        ));
-        graphRangeSpinner.setOnItemSelectedListener(new SimpleItemSelectedListener(this::updateGraph));
-        content.addView(graphRangeSpinner, matchWrap(0, 0, 0, 10));
-
-        chartView = new ThermoChartView(this);
-        chartView.setBackground(roundedStroke(0xFFF8FCFD, 0xFFDCEAED, dp(8)));
-        content.addView(chartView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(210)));
+        content.addView(clear, matchWrap(0, dp(10), 0, 0));
         return card(content);
     }
 
@@ -386,18 +419,22 @@ public class MainActivity extends Activity {
         TextView view = body(title + ": " + detail);
         view.setTextSize(14);
         view.setPadding(dp(12), dp(10), dp(12), dp(10));
-        view.setBackground(rounded(0xFFF5FAFB, dp(8)));
+        view.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
         return wrapWithMargin(view, 0, dp(8), 0, 0);
     }
 
     private View author(String name) {
         TextView view = text(name, 15, COLOR_TEXT, true);
         view.setPadding(dp(12), dp(9), dp(12), dp(9));
-        view.setBackground(roundedStroke(0xFFFFFFFF, 0xFFE1ECEF, dp(8)));
+        view.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
         return wrapWithMargin(view, 0, dp(8), 0, 0);
     }
 
     private void updateSelectedTable() {
+        updateSelectedTable(true);
+    }
+
+    private void updateSelectedTable(boolean resetResults) {
         TableSpec spec = selectedSpec();
         PropertyTable table = tables.get(spec.key);
         inputLabel.setText(spec.inputLabel);
@@ -405,39 +442,12 @@ public class MainActivity extends Activity {
         if (table != null) {
             tableRange.setText(String.format(Locale.US, "Rango disponible: %.2f C a %.2f C", table.minTemperature(), table.maxTemperature()));
         }
-        updateGraphOptions(spec);
-        temperatureInput.setText("");
-        clearResults();
-        renderHistory();
+        if (resetResults) {
+            temperatureInput.setText("");
+            clearResults();
+        }
         animateView(tableDescription, 0);
         animateView(tableRange, 80);
-    }
-
-    private void updateGraphOptions(TableSpec spec) {
-        String[] labels = new String[spec.properties.length];
-        for (int i = 0; i < spec.properties.length; i++) {
-            labels[i] = spec.properties[i].label;
-        }
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, labels);
-        graphPropertySpinner.setAdapter(adapter);
-        updateGraph();
-    }
-
-    private void updateGraph() {
-        if (chartView == null || graphPropertySpinner == null) {
-            return;
-        }
-        TableSpec spec = selectedSpec();
-        PropertyTable table = tables.get(spec.key);
-        if (table == null) {
-            return;
-        }
-        int position = Math.max(0, graphPropertySpinner.getSelectedItemPosition());
-        if (position >= spec.properties.length) {
-            position = 0;
-        }
-        double[] range = selectedGraphRange(table);
-        chartView.setData(table, spec.properties[position], range[0], range[1], lastTemperature, chartColorFor(spec.key));
     }
 
     private void calculate() {
@@ -462,9 +472,7 @@ public class MainActivity extends Activity {
         }
 
         Map<String, Double> values = table.calculate(temperature);
-        resultsLayout.removeAllViews();
         String title = String.format(Locale.US, "%s a %.2f C", spec.title, temperature);
-        resultsLayout.addView(text(title, 20, COLOR_TEXT, true), matchWrap(0, 0, 0, 8));
 
         List<String> lines = new ArrayList<>();
         lines.add("Temperatura: " + String.format(Locale.US, "%.2f C", temperature));
@@ -479,9 +487,6 @@ public class MainActivity extends Activity {
             String formatted = String.format(Locale.US, "%.4f%s", value, unit);
             String explanation = explanationForProperty(prop);
             ResultEntry entry = new ResultEntry(spec.key, prop.column, prop.label, formatted, explanation, prop.unit, temperature);
-            View row = resultRow(entry);
-            resultsLayout.addView(row, matchWrap(0, 0, 0, 10));
-            animateView(row, entries.size() * 45L);
             lines.add(prop.label + ": " + formatted);
             entries.add(entry);
         }
@@ -492,21 +497,50 @@ public class MainActivity extends Activity {
         lastPdfEntries.clear();
         lastPdfEntries.addAll(entries);
         lastTemperature = temperature;
-        updateGraph();
         addHistory(title, lines, entries, spec.key, temperature);
-        animateView(resultsLayout, 0);
+        renderCurrentResults();
     }
 
     private void clearResults() {
-        resultsLayout.removeAllViews();
-        resultsLayout.addView(text("Resultados", 20, COLOR_TEXT, true), matchWrap(0, 0, 0, 8));
-        resultsLayout.addView(body("Seleccione una tabla, ingrese una temperatura y presione Calcular."), compactWrap());
+        if (temperatureInput != null) {
+            temperatureInput.setText("");
+        }
+        if (resultsLayout != null) {
+            resultsLayout.removeAllViews();
+        }
+        if (resultsCard != null) {
+            resultsCard.setVisibility(View.GONE);
+        }
         lastPdfTitle = "";
         lastTableKey = "";
         lastPdfLines.clear();
         lastPdfEntries.clear();
         lastTemperature = Double.NaN;
-        updateGraph();
+    }
+
+    private void renderCurrentResults() {
+        if (resultsLayout == null || resultsCard == null) {
+            return;
+        }
+        resultsLayout.removeAllViews();
+        resultsCard.setVisibility(View.VISIBLE);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.addView(text("Resultados", 20, COLOR_TEXT, true), compactWrap());
+        header.addView(text(lastPdfTitle, 15, COLOR_PRIMARY, true), matchWrap(0, dp(4), 0, 0));
+        resultsLayout.addView(header, matchWrap(0, 0, 0, 10));
+
+        exportPdfButton = button("Exportar PDF", COLOR_ACCENT, 0xFF171208);
+        exportPdfButton.setOnClickListener(view -> exportPdf());
+        resultsLayout.addView(exportPdfButton, matchWrap(0, 0, 0, 12));
+
+        for (int i = 0; i < lastPdfEntries.size(); i++) {
+            View row = resultRow(lastPdfEntries.get(i));
+            resultsLayout.addView(row, matchWrap(0, 0, 0, 10));
+            animateView(row, i * 45L);
+        }
+        animateView(resultsCard, 0);
     }
 
     private View resultRow(ResultEntry entry) {
@@ -514,7 +548,7 @@ public class MainActivity extends Activity {
         String tableKey = tableKeyForEntry(entry);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(dp(12), dp(12), dp(12), dp(12));
-        row.setBackground(gradient(0xFFFFFFFF, 0xFFF5FAFB, dp(8)));
+        row.setBackground(gradient(0xFF1B2327, 0xFF222B30, dp(8)));
         row.setElevation(dp(1));
         row.addView(text(entry.label, 14, COLOR_MUTED, false), compactWrap());
         row.addView(text(entry.value, 18, chartColorFor(tableKey), true), compactWrap());
@@ -526,7 +560,7 @@ public class MainActivity extends Activity {
         if (table != null && prop != null && !Double.isNaN(entry.temperature)) {
             ThermoChartView miniChart = new ThermoChartView(this);
             miniChart.setCompact(true);
-            miniChart.setBackground(roundedStroke(0xFFF8FCFD, 0xFFDCEAED, dp(8)));
+            miniChart.setBackground(roundedStroke(0xFF141A1D, COLOR_BORDER, dp(8)));
             double[] range = focusedRange(table, entry.temperature);
             miniChart.setData(table, prop, range[0], range[1], entry.temperature, chartColorFor(tableKey));
             LinearLayout.LayoutParams chartParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(132));
@@ -545,7 +579,7 @@ public class MainActivity extends Activity {
         LinearLayout wrapper = new LinearLayout(this);
         wrapper.setOrientation(LinearLayout.VERTICAL);
         wrapper.setPadding(dp(16), dp(16), dp(16), dp(16));
-        wrapper.setBackground(rounded(0xFFFFFFFF, dp(8)));
+        wrapper.setBackground(roundedStroke(COLOR_SURFACE, COLOR_BORDER, dp(8)));
         wrapper.setElevation(dp(3));
         wrapper.addView(child, compactWrap());
         return wrapper;
@@ -565,6 +599,31 @@ public class MainActivity extends Activity {
 
     private TextView body(String value) {
         return text(value, 15, COLOR_MUTED, false);
+    }
+
+    private ArrayAdapter<String> spinnerAdapter(String[] values) {
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, values) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView view = (TextView) super.getView(position, convertView, parent);
+                view.setTextColor(COLOR_TEXT);
+                view.setTextSize(15);
+                view.setPadding(dp(12), 0, dp(12), 0);
+                return view;
+            }
+
+            @Override
+            public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                TextView view = (TextView) super.getDropDownView(position, convertView, parent);
+                view.setTextColor(COLOR_TEXT);
+                view.setTextSize(15);
+                view.setBackgroundColor(COLOR_SURFACE_2);
+                view.setPadding(dp(14), dp(12), dp(14), dp(12));
+                return view;
+            }
+        };
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        return adapter;
     }
 
     private Button button(String value, int background, int textColor) {
@@ -603,9 +662,12 @@ public class MainActivity extends Activity {
         historyLayout.removeAllViews();
         historyLayout.addView(text("Historial de cálculos", 20, COLOR_TEXT, true), matchWrap(0, 0, 0, 8));
         if (history.isEmpty()) {
-            historyLayout.addView(body("Aún no hay cálculos guardados en esta sesión."), compactWrap());
+            historyLayout.addView(body("Aún no hay cálculos guardados."), compactWrap());
             return;
         }
+        Button clearAll = button("Borrar todo", COLOR_SURFACE_2, COLOR_DANGER);
+        clearAll.setOnClickListener(view -> clearHistory());
+        historyLayout.addView(clearAll, matchWrap(0, 0, 0, 10));
         for (CalculationRecord record : history) {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -614,41 +676,33 @@ public class MainActivity extends Activity {
 
             TextView item = text(record.time + "  " + record.title, 14, COLOR_TEXT, true);
             item.setPadding(dp(12), dp(10), dp(12), dp(10));
-            item.setBackground(roundedStroke(0xFFFFFFFF, 0xFFE1ECEF, dp(8)));
-            item.setOnClickListener(view -> showHistoryRecord(record));
+            item.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
             row.addView(item, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
-            Button delete = button("Borrar", 0xFFFFF2F0, 0xFF9B2226);
+            Button viewButton = button("Ver", COLOR_PRIMARY, 0xFF07100F);
+            viewButton.setOnClickListener(view -> showHistoryRecord(record));
+            LinearLayout.LayoutParams viewParams = new LinearLayout.LayoutParams(dp(58), dp(44));
+            viewParams.setMargins(dp(8), 0, 0, 0);
+            row.addView(viewButton, viewParams);
+
+            Button delete = button("Borrar", 0xFF2A1B1D, COLOR_DANGER);
             delete.setOnClickListener(view -> deleteHistoryRecord(record));
-            row.addView(delete, new LinearLayout.LayoutParams(dp(86), dp(44)));
+            LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(dp(78), dp(44));
+            deleteParams.setMargins(dp(6), 0, 0, 0);
+            row.addView(delete, deleteParams);
             historyLayout.addView(row, compactWrap());
         }
     }
 
     private void showHistoryRecord(CalculationRecord record) {
-        resultsLayout.removeAllViews();
-        resultsLayout.addView(text(record.title, 20, COLOR_TEXT, true), matchWrap(0, 0, 0, 8));
         lastTableKey = record.tableKey;
         lastTemperature = Double.isNaN(record.temperature) ? extractTemperature(record.lines) : record.temperature;
-        if (record.entries.isEmpty()) {
-            for (String line : record.lines) {
-                resultsLayout.addView(body(line), matchWrap(0, 0, 0, 6));
-            }
-        } else {
-            for (ResultEntry entry : record.entries) {
-                View row = resultRow(entry);
-                resultsLayout.addView(row, matchWrap(0, 0, 0, 10));
-                animateView(row, resultsLayout.getChildCount() * 35L);
-            }
-        }
         lastPdfTitle = record.title;
         lastPdfLines.clear();
         lastPdfLines.addAll(record.lines);
         lastPdfEntries.clear();
         lastPdfEntries.addAll(record.entries);
-        updateGraph();
-        showModule(true);
-        animateView(resultsLayout, 0);
+        showCalculatorScreen();
     }
 
     private void deleteHistoryRecord(CalculationRecord record) {
@@ -656,6 +710,13 @@ public class MainActivity extends Activity {
         saveHistory();
         renderHistory();
         showMessage("Elemento eliminado del historial.");
+    }
+
+    private void clearHistory() {
+        history.clear();
+        saveHistory();
+        renderHistory();
+        showMessage("Historial borrado.");
     }
 
     private void loadHistory() {
@@ -859,6 +920,9 @@ public class MainActivity extends Activity {
         PdfDocument.PageInfo pageInfo = new PdfDocument.PageInfo.Builder(595, 842, pageNumber).create();
         PdfDocument.Page page = document.startPage(pageInfo);
         Canvas canvas = page.getCanvas();
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(COLOR_BG);
+        canvas.drawRect(0, 0, 595, 842, paint);
         int y = 46;
         drawPdfLogo(canvas, paint, 42, 24);
         paint.setStyle(Paint.Style.FILL);
@@ -873,7 +937,7 @@ public class MainActivity extends Activity {
         paint.setTextSize(12);
         canvas.drawText("Reporte técnico de propiedades térmicas", 92, y, paint);
 
-        paint.setColor(0xFFE1ECEF);
+        paint.setColor(COLOR_BORDER);
         paint.setStrokeWidth(1);
         canvas.drawLine(42, 90, 552, 90, paint);
         return new PdfPageState(page, canvas, pageNumber, 118);
@@ -911,11 +975,11 @@ public class MainActivity extends Activity {
         int bottom = startY + blockHeight;
 
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(0xFFF8FCFD);
+        paint.setColor(COLOR_SURFACE);
         canvas.drawRoundRect(left, startY, right, bottom, 8, 8, paint);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(1);
-        paint.setColor(0xFFDCEAED);
+        paint.setColor(COLOR_BORDER);
         canvas.drawRoundRect(left, startY, right, bottom, 8, 8, paint);
         paint.setStyle(Paint.Style.FILL);
 
@@ -996,57 +1060,6 @@ public class MainActivity extends Activity {
         paint.setStyle(Paint.Style.FILL);
     }
 
-    private int drawPdfTable(Canvas canvas, Paint paint, int startY) {
-        int left = 42;
-        int right = 552;
-        int y = startY;
-        int labelWidth = 180;
-        int valueWidth = 122;
-
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(COLOR_PRIMARY);
-        canvas.drawRoundRect(left, y, right, y + 26, 6, 6, paint);
-        paint.setColor(0xFFFFFFFF);
-        paint.setTextSize(12);
-        paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-        canvas.drawText("Propiedad", left + 10, y + 18, paint);
-        canvas.drawText("Valor", left + labelWidth + 10, y + 18, paint);
-        canvas.drawText("Descripcion", left + labelWidth + valueWidth + 10, y + 18, paint);
-        y += 30;
-
-        paint.setTypeface(Typeface.DEFAULT);
-        paint.setTextSize(10);
-        for (ResultEntry entry : lastPdfEntries) {
-            int rowTop = y;
-            int rowHeight = Math.max(34, splitForPdf(entry.explanation, 42).size() * 13 + 12);
-            paint.setColor(0xFFF7FBFC);
-            canvas.drawRect(left, rowTop, right, rowTop + rowHeight, paint);
-            paint.setColor(0xFFE1ECEF);
-            paint.setStyle(Paint.Style.STROKE);
-            canvas.drawRect(left, rowTop, right, rowTop + rowHeight, paint);
-            paint.setStyle(Paint.Style.FILL);
-
-            paint.setColor(COLOR_TEXT);
-            paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-            canvas.drawText(trimForPdf(entry.label, 24), left + 10, rowTop + 18, paint);
-            paint.setColor(COLOR_PRIMARY);
-            canvas.drawText(trimForPdf(entry.value, 18), left + labelWidth + 10, rowTop + 18, paint);
-
-            paint.setTypeface(Typeface.DEFAULT);
-            paint.setColor(COLOR_MUTED);
-            int textY = rowTop + 16;
-            for (String part : splitForPdf(entry.explanation, 42)) {
-                canvas.drawText(part, left + labelWidth + valueWidth + 10, textY, paint);
-                textY += 13;
-            }
-            y += rowHeight;
-            if (y > 610) {
-                break;
-            }
-        }
-        return y;
-    }
-
     private String trimForPdf(String value, int max) {
         if (value.length() <= max) {
             return value;
@@ -1091,7 +1104,7 @@ public class MainActivity extends Activity {
         int plotRight = left + width;
         int plotBottom = top + height;
         paint.setTypeface(Typeface.DEFAULT);
-        paint.setColor(0xFFD8E8EC);
+        paint.setColor(COLOR_BORDER);
         paint.setStrokeWidth(1);
         for (int i = 0; i <= 4; i++) {
             float y = plotBottom - (plotBottom - plotTop) * i / 4f;
@@ -1144,46 +1157,22 @@ public class MainActivity extends Activity {
     }
 
     private double[] selectedGraphRange(PropertyTable table) {
-        double min = table.minTemperature();
-        double max = table.maxTemperature();
-        int selection = graphRangeSpinner == null ? 0 : graphRangeSpinner.getSelectedItemPosition();
-        if (selection == 1 && !Double.isNaN(lastTemperature)) {
-            min = Math.max(table.minTemperature(), lastTemperature - 25.0);
-            max = Math.min(table.maxTemperature(), lastTemperature + 25.0);
-        } else if (selection == 2) {
-            min = Math.max(table.minTemperature(), 0.0);
-            max = Math.min(table.maxTemperature(), 100.0);
-        } else if (selection == 3) {
-            min = Math.max(table.minTemperature(), 100.0);
-            max = Math.min(table.maxTemperature(), 200.0);
-        } else if (selection == 4) {
-            min = Math.max(table.minTemperature(), 200.0);
-            max = Math.min(table.maxTemperature(), 250.0);
-        }
-        if (max <= min) {
-            min = table.minTemperature();
-            max = table.maxTemperature();
-        }
-        return new double[] {min, max};
+        return new double[] {table.minTemperature(), table.maxTemperature()};
     }
 
     private int chartColorFor(String key) {
         if ("water".equals(key)) {
-            return COLOR_PRIMARY;
-        }
-        if ("air".equals(key)) {
             return COLOR_SECONDARY;
         }
-        return 0xFFCA6702;
+        if ("air".equals(key)) {
+            return COLOR_PRIMARY;
+        }
+        return COLOR_ACCENT;
     }
 
     private PropertySpec selectedGraphProperty() {
         TableSpec spec = selectedSpec();
-        int position = graphPropertySpinner == null ? 0 : Math.max(0, graphPropertySpinner.getSelectedItemPosition());
-        if (position >= spec.properties.length) {
-            position = 0;
-        }
-        return spec.properties[position];
+        return spec.properties[0];
     }
 
     private double[] focusedRange(PropertyTable table, double temperature) {
@@ -1322,20 +1311,6 @@ public class MainActivity extends Activity {
         return "Número adimensional usado en transferencia de calor por convección.";
     }
 
-    private void showModule(boolean calculator) {
-        if (presentationModule == null || calculatorModule == null) {
-            return;
-        }
-        presentationModule.setVisibility(calculator ? View.GONE : View.VISIBLE);
-        calculatorModule.setVisibility(calculator ? View.VISIBLE : View.GONE);
-
-        presentationTab.setBackground(rounded(calculator ? 0xFFEAF3F5 : COLOR_PRIMARY, dp(8)));
-        presentationTab.setTextColor(calculator ? COLOR_PRIMARY : 0xFFFFFFFF);
-        calculatorTab.setBackground(rounded(calculator ? COLOR_PRIMARY : 0xFFEAF3F5, dp(8)));
-        calculatorTab.setTextColor(calculator ? 0xFFFFFFFF : COLOR_PRIMARY);
-        animateView(calculator ? calculatorModule : presentationModule, 0);
-    }
-
     private GradientDrawable rounded(int color, int radius) {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(color);
@@ -1465,7 +1440,7 @@ public class MainActivity extends Activity {
             canvas.drawLine(left, y, right, y, paint);
         }
 
-        paint.setColor(0xFFB8CDD3);
+        paint.setColor(0xFF4A5A60);
         paint.setStrokeWidth(Math.max(1f, unitSize(1.5f, scale)));
         canvas.drawLine(left, top, left, bottom, paint);
         canvas.drawLine(left, bottom, right, bottom, paint);
