@@ -67,7 +67,7 @@ public class MainActivity extends Activity {
             "water.csv",
             new PropertySpec[] {
                 new PropertySpec("y1", "Presión de saturación", "kPa"),
-                new PropertySpec("y2", "Coeficiente de expansión volumétrica", "K-1"),
+                new PropertySpec("y2", "Coeficiente de expansión volumétrica", "x 10^-3 K^-1"),
                 new PropertySpec("y3", "Densidad", "kg/m3"),
                 new PropertySpec("y4", "Calor específico", "kJ/kg K"),
                 new PropertySpec("y5", "Conductividad térmica", "W/m K"),
@@ -83,7 +83,7 @@ public class MainActivity extends Activity {
             "Temperatura del aire (C)",
             "Air.csv",
             new PropertySpec[] {
-                new PropertySpec("y1", "Coeficiente de expansión volumétrica", "K-1"),
+                new PropertySpec("y1", "Coeficiente de expansión volumétrica", "x 10^-3 K^-1"),
                 new PropertySpec("y2", "Densidad", "kg/m3"),
                 new PropertySpec("y3", "Calor específico", "kJ/kg K"),
                 new PropertySpec("y4", "Conductividad térmica", "W/m K"),
@@ -130,6 +130,7 @@ public class MainActivity extends Activity {
     private final List<String> lastPdfLines = new ArrayList<>();
     private final List<ResultEntry> lastPdfEntries = new ArrayList<>();
     private String lastPdfTitle = "";
+    private String lastTableKey = "";
     private double lastTemperature = Double.NaN;
 
     @Override
@@ -477,18 +478,22 @@ public class MainActivity extends Activity {
             String unit = prop.unit.isEmpty() ? "" : " " + prop.unit;
             String formatted = String.format(Locale.US, "%.4f%s", value, unit);
             String explanation = explanationForProperty(prop);
-            resultsLayout.addView(resultRow(prop.label, formatted, explanation), matchWrap(0, 0, 0, 8));
+            ResultEntry entry = new ResultEntry(spec.key, prop.column, prop.label, formatted, explanation, prop.unit, temperature);
+            View row = resultRow(entry);
+            resultsLayout.addView(row, matchWrap(0, 0, 0, 10));
+            animateView(row, entries.size() * 45L);
             lines.add(prop.label + ": " + formatted);
-            entries.add(new ResultEntry(prop.label, formatted, explanation));
+            entries.add(entry);
         }
         lastPdfTitle = title;
+        lastTableKey = spec.key;
         lastPdfLines.clear();
         lastPdfLines.addAll(lines);
         lastPdfEntries.clear();
         lastPdfEntries.addAll(entries);
         lastTemperature = temperature;
         updateGraph();
-        addHistory(title, lines, entries);
+        addHistory(title, lines, entries, spec.key, temperature);
         animateView(resultsLayout, 0);
     }
 
@@ -497,22 +502,37 @@ public class MainActivity extends Activity {
         resultsLayout.addView(text("Resultados", 20, COLOR_TEXT, true), matchWrap(0, 0, 0, 8));
         resultsLayout.addView(body("Seleccione una tabla, ingrese una temperatura y presione Calcular."), compactWrap());
         lastPdfTitle = "";
+        lastTableKey = "";
         lastPdfLines.clear();
         lastPdfEntries.clear();
         lastTemperature = Double.NaN;
         updateGraph();
     }
 
-    private View resultRow(String name, String value, String explanation) {
+    private View resultRow(ResultEntry entry) {
         LinearLayout row = new LinearLayout(this);
+        String tableKey = tableKeyForEntry(entry);
         row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(12), dp(11), dp(12), dp(11));
-        row.setBackground(roundedStroke(0xFFFFFFFF, 0xFFE0EBEE, dp(8)));
-        row.addView(text(name, 14, COLOR_MUTED, false), compactWrap());
-        row.addView(text(value, 18, COLOR_PRIMARY, true), compactWrap());
-        TextView help = text(explanation, 13, COLOR_MUTED, false);
+        row.setPadding(dp(12), dp(12), dp(12), dp(12));
+        row.setBackground(gradient(0xFFFFFFFF, 0xFFF5FAFB, dp(8)));
+        row.setElevation(dp(1));
+        row.addView(text(entry.label, 14, COLOR_MUTED, false), compactWrap());
+        row.addView(text(entry.value, 18, chartColorFor(tableKey), true), compactWrap());
+        TextView help = text(entry.explanation, 13, COLOR_MUTED, false);
         help.setPadding(0, dp(6), 0, 0);
         row.addView(help, compactWrap());
+        PropertyTable table = tables.get(tableKey);
+        PropertySpec prop = propertyForEntry(entry);
+        if (table != null && prop != null && !Double.isNaN(entry.temperature)) {
+            ThermoChartView miniChart = new ThermoChartView(this);
+            miniChart.setCompact(true);
+            miniChart.setBackground(roundedStroke(0xFFF8FCFD, 0xFFDCEAED, dp(8)));
+            double[] range = focusedRange(table, entry.temperature);
+            miniChart.setData(table, prop, range[0], range[1], entry.temperature, chartColorFor(tableKey));
+            LinearLayout.LayoutParams chartParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(132));
+            chartParams.setMargins(0, dp(10), 0, 0);
+            row.addView(miniChart, chartParams);
+        }
         return row;
     }
 
@@ -566,9 +586,9 @@ public class MainActivity extends Activity {
         return button;
     }
 
-    private void addHistory(String title, List<String> lines, List<ResultEntry> entries) {
+    private void addHistory(String title, List<String> lines, List<ResultEntry> entries, String tableKey, double temperature) {
         String time = new SimpleDateFormat("HH:mm", Locale.US).format(new Date());
-        history.add(0, new CalculationRecord(time, title, new ArrayList<>(lines), new ArrayList<>(entries)));
+        history.add(0, new CalculationRecord(time, title, new ArrayList<>(lines), new ArrayList<>(entries), tableKey, temperature));
         while (history.size() > 8) {
             history.remove(history.size() - 1);
         }
@@ -608,13 +628,17 @@ public class MainActivity extends Activity {
     private void showHistoryRecord(CalculationRecord record) {
         resultsLayout.removeAllViews();
         resultsLayout.addView(text(record.title, 20, COLOR_TEXT, true), matchWrap(0, 0, 0, 8));
+        lastTableKey = record.tableKey;
+        lastTemperature = Double.isNaN(record.temperature) ? extractTemperature(record.lines) : record.temperature;
         if (record.entries.isEmpty()) {
             for (String line : record.lines) {
                 resultsLayout.addView(body(line), matchWrap(0, 0, 0, 6));
             }
         } else {
             for (ResultEntry entry : record.entries) {
-                resultsLayout.addView(resultRow(entry.label, entry.value, entry.explanation), matchWrap(0, 0, 0, 8));
+                View row = resultRow(entry);
+                resultsLayout.addView(row, matchWrap(0, 0, 0, 10));
+                animateView(row, resultsLayout.getChildCount() * 35L);
             }
         }
         lastPdfTitle = record.title;
@@ -622,7 +646,6 @@ public class MainActivity extends Activity {
         lastPdfLines.addAll(record.lines);
         lastPdfEntries.clear();
         lastPdfEntries.addAll(record.entries);
-        lastTemperature = extractTemperature(record.lines);
         updateGraph();
         showModule(true);
         animateView(resultsLayout, 0);
@@ -651,9 +674,12 @@ public class MainActivity extends Activity {
             if (fields.length < 4) {
                 continue;
             }
+            String title = unescape(fields[1]);
             List<String> lines = splitStoredList(fields[2]);
-            List<ResultEntry> entries = decodeEntries(fields[3]);
-            history.add(new CalculationRecord(unescape(fields[0]), unescape(fields[1]), lines, entries));
+            String tableKey = fields.length >= 5 ? unescape(fields[4]) : inferTableKey(title);
+            double temperature = fields.length >= 6 ? parseStoredDouble(unescape(fields[5])) : extractTemperature(lines);
+            List<ResultEntry> entries = decodeEntries(fields[3], tableKey, temperature);
+            history.add(new CalculationRecord(unescape(fields[0]), title, lines, entries, tableKey, temperature));
         }
     }
 
@@ -666,7 +692,9 @@ public class MainActivity extends Activity {
             builder.append(escape(record.time)).append(FIELD_SEPARATOR)
                 .append(escape(record.title)).append(FIELD_SEPARATOR)
                 .append(joinStoredList(record.lines)).append(FIELD_SEPARATOR)
-                .append(encodeEntries(record.entries));
+                .append(encodeEntries(record.entries)).append(FIELD_SEPARATOR)
+                .append(escape(record.tableKey)).append(FIELD_SEPARATOR)
+                .append(escape(String.format(Locale.US, "%.6f", record.temperature)));
         }
         getSharedPreferences(HISTORY_PREFS, MODE_PRIVATE)
             .edit()
@@ -699,17 +727,43 @@ public class MainActivity extends Activity {
     private String encodeEntries(List<ResultEntry> entries) {
         List<String> rows = new ArrayList<>();
         for (ResultEntry entry : entries) {
-            rows.add(escape(entry.label) + "|" + escape(entry.value) + "|" + escape(entry.explanation));
+            rows.add(escape(entry.tableKey) + "|" +
+                escape(entry.column) + "|" +
+                escape(entry.label) + "|" +
+                escape(entry.value) + "|" +
+                escape(entry.explanation) + "|" +
+                escape(entry.unit) + "|" +
+                escape(String.format(Locale.US, "%.6f", entry.temperature)));
         }
         return joinStoredList(rows);
     }
 
-    private List<ResultEntry> decodeEntries(String raw) {
+    private List<ResultEntry> decodeEntries(String raw, String defaultTableKey, double defaultTemperature) {
         List<ResultEntry> entries = new ArrayList<>();
         for (String row : splitStoredList(raw)) {
             String[] fields = row.split("\\|", -1);
-            if (fields.length >= 3) {
-                entries.add(new ResultEntry(unescape(fields[0]), unescape(fields[1]), unescape(fields[2])));
+            if (fields.length >= 7) {
+                entries.add(new ResultEntry(
+                    unescape(fields[0]),
+                    unescape(fields[1]),
+                    unescape(fields[2]),
+                    unescape(fields[3]),
+                    unescape(fields[4]),
+                    unescape(fields[5]),
+                    parseStoredDouble(unescape(fields[6]))
+                ));
+            } else if (fields.length >= 3) {
+                String label = unescape(fields[0]);
+                PropertySpec prop = propertyForLabel(defaultTableKey, label);
+                entries.add(new ResultEntry(
+                    defaultTableKey,
+                    prop == null ? "" : prop.column,
+                    label,
+                    unescape(fields[1]),
+                    unescape(fields[2]),
+                    prop == null ? "" : prop.unit,
+                    defaultTemperature
+                ));
             }
         }
         return entries;
@@ -777,14 +831,37 @@ public class MainActivity extends Activity {
 
     private void writePdf(Uri uri) {
         PdfDocument document = new PdfDocument();
-        int pageNumber = 1;
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        PdfPageState state = startPdfPage(document, paint, 1);
+        state.y = drawPdfSummary(state.canvas, paint, state.y);
+
+        for (ResultEntry entry : lastPdfEntries) {
+            int blockHeight = pdfResultBlockHeight(entry);
+            if (state.y + blockHeight > 804) {
+                document.finishPage(state.page);
+                state = startPdfPage(document, paint, state.pageNumber + 1);
+            }
+            state.y = drawPdfResultBlock(state.canvas, paint, entry, state.y) + 12;
+        }
+        document.finishPage(state.page);
+
+        try (OutputStream output = getContentResolver().openOutputStream(uri)) {
+            document.writeTo(output);
+            showMessage("PDF exportado correctamente.");
+        } catch (Exception exc) {
+            showMessage("No se pudo exportar el PDF.");
+        } finally {
+            document.close();
+        }
+    }
+
+    private PdfPageState startPdfPage(PdfDocument document, Paint paint, int pageNumber) {
         PdfDocument.PageInfo pageInfo = new PdfDocument.PageInfo.Builder(595, 842, pageNumber).create();
         PdfDocument.Page page = document.startPage(pageInfo);
         Canvas canvas = page.getCanvas();
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
         int y = 46;
         drawPdfLogo(canvas, paint, 42, 24);
+        paint.setStyle(Paint.Style.FILL);
         paint.setColor(COLOR_PRIMARY);
         paint.setTextSize(24);
         paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
@@ -796,32 +873,99 @@ public class MainActivity extends Activity {
         paint.setTextSize(12);
         canvas.drawText("Reporte técnico de propiedades térmicas", 92, y, paint);
 
-        y += 34;
+        paint.setColor(0xFFE1ECEF);
+        paint.setStrokeWidth(1);
+        canvas.drawLine(42, 90, 552, 90, paint);
+        return new PdfPageState(page, canvas, pageNumber, 118);
+    }
+
+    private int drawPdfSummary(Canvas canvas, Paint paint, int startY) {
+        int y = startY;
+        paint.setStyle(Paint.Style.FILL);
         paint.setColor(COLOR_TEXT);
         paint.setTextSize(18);
+        paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
         canvas.drawText(lastPdfTitle, 42, y, paint);
 
-        y += 24;
-        paint.setTextSize(13);
+        y += 22;
+        paint.setTypeface(Typeface.DEFAULT);
+        paint.setTextSize(12);
         paint.setColor(COLOR_MUTED);
         canvas.drawText("Fecha: " + new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(new Date()), 42, y, paint);
-
-        y += 28;
-        y = drawPdfTable(canvas, paint, y);
-        y += 18;
-        if (y < 610) {
-            drawPdfChart(canvas, paint, 42, y, 510, 170);
+        if (!Double.isNaN(lastTemperature)) {
+            y += 16;
+            canvas.drawText(String.format(Locale.US, "Temperatura calculada: %.2f C", lastTemperature), 42, y, paint);
         }
-        document.finishPage(page);
+        return y + 22;
+    }
 
-        try (OutputStream output = getContentResolver().openOutputStream(uri)) {
-            document.writeTo(output);
-            showMessage("PDF exportado correctamente.");
-        } catch (Exception exc) {
-            showMessage("No se pudo exportar el PDF.");
-        } finally {
-            document.close();
+    private int pdfResultBlockHeight(ResultEntry entry) {
+        int textLines = splitForPdf(entry.explanation, 70).size();
+        return 68 + textLines * 12 + 124;
+    }
+
+    private int drawPdfResultBlock(Canvas canvas, Paint paint, ResultEntry entry, int startY) {
+        int left = 42;
+        int right = 552;
+        int blockHeight = pdfResultBlockHeight(entry);
+        int bottom = startY + blockHeight;
+
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(0xFFF8FCFD);
+        canvas.drawRoundRect(left, startY, right, bottom, 8, 8, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(1);
+        paint.setColor(0xFFDCEAED);
+        canvas.drawRoundRect(left, startY, right, bottom, 8, 8, paint);
+        paint.setStyle(Paint.Style.FILL);
+
+        String tableKey = tableKeyForEntry(entry);
+        paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        paint.setTextSize(13);
+        paint.setColor(COLOR_TEXT);
+        canvas.drawText(trimForPdf(entry.label, 48), left + 12, startY + 20, paint);
+
+        paint.setTextSize(16);
+        paint.setColor(chartColorFor(tableKey));
+        canvas.drawText(trimForPdf(entry.value, 40), left + 12, startY + 40, paint);
+
+        paint.setTypeface(Typeface.DEFAULT);
+        paint.setTextSize(10);
+        paint.setColor(COLOR_MUTED);
+        int textY = startY + 58;
+        for (String part : splitForPdf(entry.explanation, 70)) {
+            canvas.drawText(part, left + 12, textY, paint);
+            textY += 12;
         }
+
+        PropertyTable table = tables.get(tableKey);
+        PropertySpec prop = propertyForEntry(entry);
+        if (table != null && prop != null && !Double.isNaN(entry.temperature)) {
+            double[] range = focusedRange(table, entry.temperature);
+            List<Double> xValues = new ArrayList<>();
+            List<Double> yValues = new ArrayList<>();
+            fillChartValues(table, prop, range[0], range[1], xValues, yValues, 44);
+            drawChartCanvas(
+                canvas,
+                paint,
+                "",
+                prop.unit,
+                xValues,
+                yValues,
+                range[0],
+                range[1],
+                entry.temperature,
+                table.valueFor(prop.column, entry.temperature),
+                chartColorFor(tableKey),
+                left + 10,
+                textY + 6,
+                right - 10,
+                bottom - 10,
+                true,
+                1f
+            );
+        }
+        return bottom;
     }
 
     private List<String> splitForPdf(String value, int maxLength) {
@@ -1042,6 +1186,95 @@ public class MainActivity extends Activity {
         return spec.properties[position];
     }
 
+    private double[] focusedRange(PropertyTable table, double temperature) {
+        double min = Math.max(table.minTemperature(), temperature - 35.0);
+        double max = Math.min(table.maxTemperature(), temperature + 35.0);
+        if (max - min < 20.0) {
+            min = table.minTemperature();
+            max = table.maxTemperature();
+        }
+        return new double[] {min, max};
+    }
+
+    private void fillChartValues(PropertyTable table, PropertySpec prop, double minTemperature, double maxTemperature, List<Double> xValues, List<Double> yValues, int points) {
+        xValues.clear();
+        yValues.clear();
+        for (int i = 0; i < points; i++) {
+            double x = minTemperature + (maxTemperature - minTemperature) * i / (points - 1);
+            xValues.add(x);
+            yValues.add(table.valueFor(prop.column, x));
+        }
+    }
+
+    private PropertySpec propertyForEntry(ResultEntry entry) {
+        if (entry == null) {
+            return null;
+        }
+        String tableKey = tableKeyForEntry(entry);
+        TableSpec spec = specForKey(tableKey);
+        if (spec == null) {
+            return null;
+        }
+        for (PropertySpec prop : spec.properties) {
+            if (prop.column.equals(entry.column)) {
+                return prop;
+            }
+        }
+        return propertyForLabel(tableKey, entry.label);
+    }
+
+    private String tableKeyForEntry(ResultEntry entry) {
+        if (entry != null && entry.tableKey != null && !entry.tableKey.isEmpty()) {
+            return entry.tableKey;
+        }
+        return lastTableKey == null ? "" : lastTableKey;
+    }
+
+    private PropertySpec propertyForLabel(String tableKey, String label) {
+        TableSpec spec = specForKey(tableKey);
+        if (spec == null || label == null) {
+            return null;
+        }
+        for (PropertySpec prop : spec.properties) {
+            if (prop.label.equals(label)) {
+                return prop;
+            }
+        }
+        return null;
+    }
+
+    private TableSpec specForKey(String tableKey) {
+        for (TableSpec spec : TABLES) {
+            if (spec.key.equals(tableKey)) {
+                return spec;
+            }
+        }
+        return null;
+    }
+
+    private String inferTableKey(String title) {
+        if (title == null) {
+            return "";
+        }
+        for (TableSpec spec : TABLES) {
+            if (title.startsWith(spec.title)) {
+                return spec.key;
+            }
+        }
+        return "";
+    }
+
+    private double parseStoredDouble(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return Double.NaN;
+        }
+        try {
+            return Double.parseDouble(value.trim().replace(",", "."));
+        } catch (NumberFormatException exc) {
+            return Double.NaN;
+        }
+    }
+
     private double extractTemperature(List<String> lines) {
         if (lines.isEmpty()) {
             return Double.NaN;
@@ -1172,6 +1405,144 @@ public class MainActivity extends Activity {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 
+    private void drawChartCanvas(
+        Canvas canvas,
+        Paint paint,
+        String title,
+        String unit,
+        List<Double> xValues,
+        List<Double> yValues,
+        double minX,
+        double maxX,
+        double markerX,
+        double markerY,
+        int lineColor,
+        int leftBound,
+        int topBound,
+        int rightBound,
+        int bottomBound,
+        boolean compact,
+        float scale
+    ) {
+        if (xValues.isEmpty() || yValues.isEmpty() || maxX <= minX) {
+            return;
+        }
+
+        int titleSpace = title == null || title.isEmpty() ? unitSize(compact ? 8 : 12, scale) : unitSize(compact ? 24 : 34, scale);
+        int left = leftBound + unitSize(compact ? 38 : 48, scale);
+        int right = rightBound - unitSize(14, scale);
+        int top = topBound + titleSpace;
+        int bottom = bottomBound - unitSize(compact ? 26 : 34, scale);
+        if (right <= left || bottom <= top) {
+            return;
+        }
+
+        double minY = yValues.get(0);
+        double maxY = yValues.get(0);
+        for (double value : yValues) {
+            minY = Math.min(minY, value);
+            maxY = Math.max(maxY, value);
+        }
+        if (Math.abs(maxY - minY) < 1e-12) {
+            maxY += 1.0;
+            minY -= 1.0;
+        }
+
+        paint.setStyle(Paint.Style.FILL);
+        paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        paint.setTextSize(unitSize(compact ? 10 : 13, scale));
+        paint.setColor(COLOR_TEXT);
+        if (title != null && !title.isEmpty()) {
+            canvas.drawText(title, leftBound + unitSize(14, scale), topBound + unitSize(23, scale), paint);
+        }
+
+        paint.setTypeface(Typeface.DEFAULT);
+        paint.setStrokeWidth(Math.max(1f, unitSize(1, scale)));
+        paint.setColor(0xFFD8E8EC);
+        int gridLines = compact ? 3 : 5;
+        for (int i = 0; i <= gridLines; i++) {
+            float y = bottom - (bottom - top) * i / (float) gridLines;
+            canvas.drawLine(left, y, right, y, paint);
+        }
+
+        paint.setColor(0xFFB8CDD3);
+        paint.setStrokeWidth(Math.max(1f, unitSize(1.5f, scale)));
+        canvas.drawLine(left, top, left, bottom, paint);
+        canvas.drawLine(left, bottom, right, bottom, paint);
+
+        Path linePath = new Path();
+        Path fillPath = new Path();
+        for (int i = 0; i < xValues.size(); i++) {
+            float px = (float) (left + (xValues.get(i) - minX) / (maxX - minX) * (right - left));
+            float py = (float) (bottom - (yValues.get(i) - minY) / (maxY - minY) * (bottom - top));
+            if (i == 0) {
+                linePath.moveTo(px, py);
+                fillPath.moveTo(px, bottom);
+                fillPath.lineTo(px, py);
+            } else {
+                linePath.lineTo(px, py);
+                fillPath.lineTo(px, py);
+            }
+        }
+        fillPath.lineTo(right, bottom);
+        fillPath.close();
+
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(withAlpha(lineColor, compact ? 28 : 34));
+        canvas.drawPath(fillPath, paint);
+
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(unitSize(compact ? 2.2f : 3f, scale));
+        paint.setColor(lineColor);
+        canvas.drawPath(linePath, paint);
+
+        paint.setStyle(Paint.Style.FILL);
+        paint.setTypeface(Typeface.DEFAULT);
+        paint.setTextSize(unitSize(compact ? 8.5f : 10f, scale));
+        paint.setColor(COLOR_MUTED);
+        int xLabels = compact ? 2 : 4;
+        for (int i = 0; i <= xLabels; i++) {
+            float x = left + (right - left) * i / (float) xLabels;
+            double labelValue = minX + (maxX - minX) * i / (double) xLabels;
+            canvas.drawText(String.format(Locale.US, "%.0f", labelValue), x - unitSize(8, scale), bottomBound - unitSize(9, scale), paint);
+        }
+        canvas.drawText("C", right + unitSize(2, scale), bottomBound - unitSize(9, scale), paint);
+        canvas.drawText(formatAxis(maxY, unit, compact), leftBound + unitSize(8, scale), top + unitSize(4, scale), paint);
+        canvas.drawText(formatAxis(minY, unit, compact), leftBound + unitSize(8, scale), bottom, paint);
+
+        if (!Double.isNaN(markerX) && !Double.isNaN(markerY) && markerX >= minX && markerX <= maxX) {
+            float px = (float) (left + (markerX - minX) / (maxX - minX) * (right - left));
+            float py = (float) (bottom - (markerY - minY) / (maxY - minY) * (bottom - top));
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(1f, unitSize(1, scale)));
+            paint.setColor(withAlpha(COLOR_TEXT, 70));
+            canvas.drawLine(px, top, px, bottom, paint);
+
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(COLOR_ACCENT);
+            canvas.drawCircle(px, py, unitSize(compact ? 4.5f : 6f, scale), paint);
+            paint.setColor(COLOR_TEXT);
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+            paint.setTextSize(unitSize(compact ? 8.5f : 10f, scale));
+            String markerLabel = String.format(Locale.US, "%.4f", markerY);
+            canvas.drawText(markerLabel, Math.min(px + unitSize(7, scale), right - unitSize(68, scale)), Math.max(top + unitSize(10, scale), py - unitSize(7, scale)), paint);
+        }
+        paint.setStyle(Paint.Style.FILL);
+    }
+
+    private String formatAxis(double value, String unit, boolean compact) {
+        String suffix = unit.isEmpty() || compact ? "" : " " + unit;
+        return String.format(Locale.US, "%.2g%s", value, suffix);
+    }
+
+    private int withAlpha(int color, int alpha) {
+        return (color & 0x00FFFFFF) | (Math.max(0, Math.min(255, alpha)) << 24);
+    }
+
+    private int unitSize(float value, float scale) {
+        return (int) (value * scale + 0.5f);
+    }
+
     private Map<String, List<Double>> readCsv(String assetName) throws Exception {
         Map<String, List<Double>> columns = new HashMap<>();
         try (InputStream stream = getAssets().open(assetName);
@@ -1205,7 +1576,6 @@ public class MainActivity extends Activity {
 
     private final class ThermoChartView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path path = new Path();
         private final List<Double> xValues = new ArrayList<>();
         private final List<Double> yValues = new ArrayList<>();
         private String title = "Seleccione una propiedad";
@@ -1215,16 +1585,21 @@ public class MainActivity extends Activity {
         private double markerX = Double.NaN;
         private double markerY = Double.NaN;
         private int lineColor = COLOR_PRIMARY;
+        private boolean compact = false;
 
         ThermoChartView(Context context) {
             super(context);
             setPadding(dp(12), dp(12), dp(12), dp(12));
         }
 
+        void setCompact(boolean compact) {
+            this.compact = compact;
+        }
+
         void setData(PropertyTable table, PropertySpec prop, double minTemperature, double maxTemperature, double selectedTemperature, int color) {
             xValues.clear();
             yValues.clear();
-            title = prop.label;
+            title = compact ? "" : prop.label;
             unit = prop.unit;
             rangeMin = minTemperature;
             rangeMax = maxTemperature;
@@ -1232,12 +1607,7 @@ public class MainActivity extends Activity {
             markerX = Double.NaN;
             markerY = Double.NaN;
 
-            int points = 46;
-            for (int i = 0; i < points; i++) {
-                double x = minTemperature + (maxTemperature - minTemperature) * i / (points - 1);
-                xValues.add(x);
-                yValues.add(table.valueFor(prop.column, x));
-            }
+            fillChartValues(table, prop, minTemperature, maxTemperature, xValues, yValues, compact ? 42 : 52);
             if (!Double.isNaN(selectedTemperature) && selectedTemperature >= minTemperature && selectedTemperature <= maxTemperature) {
                 markerX = selectedTemperature;
                 markerY = table.valueFor(prop.column, selectedTemperature);
@@ -1250,93 +1620,34 @@ public class MainActivity extends Activity {
             super.onDraw(canvas);
             int width = getWidth();
             int height = getHeight();
-            int left = dp(42);
-            int right = width - dp(14);
-            int top = dp(42);
-            int bottom = height - dp(34);
-
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(COLOR_TEXT);
-            paint.setTextSize(dp(13));
-            paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-            canvas.drawText(title, dp(14), dp(25), paint);
 
             if (xValues.isEmpty()) {
+                paint.setStyle(Paint.Style.FILL);
                 paint.setTypeface(Typeface.DEFAULT);
                 paint.setColor(COLOR_MUTED);
+                paint.setTextSize(dp(12));
                 canvas.drawText("Sin datos para graficar", dp(14), height / 2f, paint);
                 return;
             }
-
-            double minX = rangeMin;
-            double maxX = rangeMax;
-            double minY = yValues.get(0);
-            double maxY = yValues.get(0);
-            for (double value : yValues) {
-                minY = Math.min(minY, value);
-                maxY = Math.max(maxY, value);
-            }
-            if (Math.abs(maxY - minY) < 1e-12) {
-                maxY += 1.0;
-                minY -= 1.0;
-            }
-
-            paint.setTypeface(Typeface.DEFAULT);
-            paint.setStrokeWidth(dp(1));
-            paint.setColor(0xFFD8E8EC);
-            for (int i = 0; i <= 5; i++) {
-                float y = bottom - (bottom - top) * i / 5f;
-                canvas.drawLine(left, y, right, y, paint);
-            }
-
-            paint.setColor(COLOR_MUTED);
-            paint.setTextSize(dp(10));
-            for (int i = 0; i <= 4; i++) {
-                float x = left + (right - left) * i / 4f;
-                double labelValue = minX + (maxX - minX) * i / 4.0;
-                canvas.drawText(String.format(Locale.US, "%.0f", labelValue), x - dp(8), height - dp(12), paint);
-            }
-            canvas.drawText("C", right + dp(2), height - dp(12), paint);
-            canvas.drawText(formatAxis(maxY, unit), dp(10), top + dp(4), paint);
-            canvas.drawText(formatAxis(minY, unit), dp(10), bottom, paint);
-
-            paint.setColor(0xFFB8CDD3);
-            paint.setStrokeWidth(dp(2));
-            canvas.drawLine(left, top, left, bottom, paint);
-            canvas.drawLine(left, bottom, right, bottom, paint);
-
-            path.reset();
-            for (int i = 0; i < xValues.size(); i++) {
-                float px = (float) (left + (xValues.get(i) - minX) / (maxX - minX) * (right - left));
-                float py = (float) (bottom - (yValues.get(i) - minY) / (maxY - minY) * (bottom - top));
-                if (i == 0) {
-                    path.moveTo(px, py);
-                } else {
-                    path.lineTo(px, py);
-                }
-            }
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dp(3));
-            paint.setColor(lineColor);
-            canvas.drawPath(path, paint);
-
-            if (!Double.isNaN(markerX) && !Double.isNaN(markerY)) {
-                float px = (float) (left + (markerX - minX) / (maxX - minX) * (right - left));
-                float py = (float) (bottom - (markerY - minY) / (maxY - minY) * (bottom - top));
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(COLOR_ACCENT);
-                canvas.drawCircle(px, py, dp(6), paint);
-                paint.setColor(COLOR_TEXT);
-                paint.setTextSize(dp(10));
-                String markerLabel = String.format(Locale.US, "%.2f", markerY);
-                canvas.drawText(markerLabel, Math.min(px + dp(8), right - dp(54)), Math.max(top + dp(12), py - dp(8)), paint);
-            }
-            paint.setStyle(Paint.Style.FILL);
-        }
-
-        private String formatAxis(double value, String unit) {
-            String suffix = unit.isEmpty() ? "" : " " + unit;
-            return String.format(Locale.US, "%.2g%s", value, suffix);
+            drawChartCanvas(
+                canvas,
+                paint,
+                title,
+                unit,
+                xValues,
+                yValues,
+                rangeMin,
+                rangeMax,
+                markerX,
+                markerY,
+                lineColor,
+                0,
+                0,
+                width,
+                height,
+                compact,
+                getResources().getDisplayMetrics().density
+            );
         }
     }
 
@@ -1345,24 +1656,50 @@ public class MainActivity extends Activity {
         final String title;
         final List<String> lines;
         final List<ResultEntry> entries;
+        final String tableKey;
+        final double temperature;
 
-        CalculationRecord(String time, String title, List<String> lines, List<ResultEntry> entries) {
+        CalculationRecord(String time, String title, List<String> lines, List<ResultEntry> entries, String tableKey, double temperature) {
             this.time = time;
             this.title = title;
             this.lines = lines;
             this.entries = entries;
+            this.tableKey = tableKey == null ? "" : tableKey;
+            this.temperature = temperature;
+        }
+    }
+
+    private static final class PdfPageState {
+        final PdfDocument.Page page;
+        final Canvas canvas;
+        final int pageNumber;
+        int y;
+
+        PdfPageState(PdfDocument.Page page, Canvas canvas, int pageNumber, int y) {
+            this.page = page;
+            this.canvas = canvas;
+            this.pageNumber = pageNumber;
+            this.y = y;
         }
     }
 
     private static final class ResultEntry {
+        final String tableKey;
+        final String column;
         final String label;
         final String value;
         final String explanation;
+        final String unit;
+        final double temperature;
 
-        ResultEntry(String label, String value, String explanation) {
+        ResultEntry(String tableKey, String column, String label, String value, String explanation, String unit, double temperature) {
+            this.tableKey = tableKey == null ? "" : tableKey;
+            this.column = column == null ? "" : column;
             this.label = label;
             this.value = value;
             this.explanation = explanation;
+            this.unit = unit == null ? "" : unit;
+            this.temperature = temperature;
         }
     }
 
