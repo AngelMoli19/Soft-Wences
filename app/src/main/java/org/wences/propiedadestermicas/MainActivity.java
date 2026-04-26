@@ -132,7 +132,6 @@ public class MainActivity extends Activity {
     private EditText temperatureInput;
     private LinearLayout resultsLayout;
     private LinearLayout historyLayout;
-    private View resultsCard;
     private Button exportPdfButton;
     private final List<CalculationRecord> history = new ArrayList<>();
     private final List<String> lastPdfLines = new ArrayList<>();
@@ -210,7 +209,7 @@ public class MainActivity extends Activity {
 
         navDrawer = buildNavDrawer();
         navDrawer.setVisibility(View.GONE);
-        FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(dp(72), FrameLayout.LayoutParams.WRAP_CONTENT);
+        FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(dp(184), FrameLayout.LayoutParams.WRAP_CONTENT);
         navParams.gravity = Gravity.START | Gravity.TOP;
         navParams.topMargin = dp(62);
         frame.addView(navDrawer, navParams);
@@ -220,22 +219,35 @@ public class MainActivity extends Activity {
     private LinearLayout buildNavDrawer() {
         LinearLayout drawer = new LinearLayout(this);
         drawer.setOrientation(LinearLayout.VERTICAL);
-        drawer.setGravity(Gravity.CENTER);
-        drawer.setPadding(dp(8), dp(8), dp(8), dp(8));
+        drawer.setGravity(Gravity.CENTER_VERTICAL);
+        drawer.setPadding(dp(10), dp(10), dp(10), dp(10));
         drawer.setBackground(roundedStroke(0xF01A2024, COLOR_BORDER, dp(8)));
         drawer.setElevation(dp(8));
-        drawer.addView(navIcon("⌂", SCREEN_MENU), iconWrap(0));
-        drawer.addView(navIcon("∑", SCREEN_CALCULATOR), iconWrap(8));
-        drawer.addView(navIcon("◷", SCREEN_HISTORY), iconWrap(8));
-        drawer.addView(navIcon("ⓘ", SCREEN_ABOUT), iconWrap(8));
+        drawer.addView(navItem("⌂", "Inicio", SCREEN_MENU), navItemWrap(0));
+        drawer.addView(navItem("∑", "Calcular", SCREEN_CALCULATOR), navItemWrap(8));
+        drawer.addView(navItem("◷", "Historial", SCREEN_HISTORY), navItemWrap(8));
+        drawer.addView(navItem("ⓘ", "Info", SCREEN_ABOUT), navItemWrap(8));
         return drawer;
     }
 
-    private TextView navIcon(String icon, int targetScreen) {
+    private View navItem(String icon, String label, int targetScreen) {
         int bg = currentScreen == targetScreen ? COLOR_PRIMARY : COLOR_SURFACE_2;
         int fg = currentScreen == targetScreen ? 0xFF07100F : COLOR_TEXT;
-        TextView view = iconButton(icon, bg, fg);
-        view.setOnClickListener(clicked -> {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setPadding(dp(8), 0, dp(10), 0);
+        item.setBackground(rounded(bg, dp(8)));
+
+        TextView iconView = navGlyph(icon, fg);
+        item.addView(iconView, new LinearLayout.LayoutParams(dp(42), dp(42)));
+
+        TextView labelView = text(label, 13, fg, true);
+        labelView.setGravity(Gravity.CENTER_VERTICAL);
+        labelView.setPadding(dp(8), 0, 0, 0);
+        item.addView(labelView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        item.setOnClickListener(clicked -> {
             navOpen = false;
             if (targetScreen == SCREEN_MENU) {
                 showMainMenu();
@@ -247,6 +259,21 @@ public class MainActivity extends Activity {
                 showAboutScreen();
             }
         });
+        item.setOnTouchListener((target, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                target.animate().scaleX(0.97f).scaleY(0.97f).setDuration(90).start();
+            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                target.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
+            }
+            return false;
+        });
+        return item;
+    }
+
+    private TextView navGlyph(String icon, int textColor) {
+        TextView view = text(icon, 22, textColor, true);
+        view.setGravity(Gravity.CENTER);
+        view.setIncludeFontPadding(false);
         return view;
     }
 
@@ -318,21 +345,11 @@ public class MainActivity extends Activity {
         pageLayout.addView(screenHeader("Calcular", "Consulta propiedades y revisa gráficos individuales por resultado."), matchWrap(0, 0, 0, 14));
         pageLayout.addView(calculatorSection(), matchWrap(0, 0, 0, 14));
 
-        resultsLayout = new LinearLayout(this);
-        resultsLayout.setOrientation(LinearLayout.VERTICAL);
-        resultsCard = card(resultsLayout);
-        pageLayout.addView(resultsCard, matchWrap(0, 0, 0, 0));
-
         tableSpinner.setOnItemSelectedListener(null);
         setSpinnerToTable(lastTableKey);
         updateSelectedTable(false);
         if (!Double.isNaN(lastTemperature)) {
             temperatureInput.setText(String.format(Locale.US, "%.2f", lastTemperature));
-        }
-        if (lastPdfEntries.isEmpty()) {
-            resultsCard.setVisibility(View.GONE);
-        } else {
-            renderCurrentResults();
         }
         final boolean[] skipInitialSelection = {true};
         tableSpinner.post(() -> tableSpinner.setOnItemSelectedListener(new SimpleItemSelectedListener(() -> {
@@ -369,16 +386,47 @@ public class MainActivity extends Activity {
         animateIntro();
     }
 
+    private void showResultsScreen() {
+        navOpen = false;
+        pageLayout.removeAllViews();
+        pageLayout.addView(resultsTopBar(), matchWrap(0, 0, 0, 12));
+        pageLayout.addView(screenHeader("Resultados", "Valores interpolados y gráficos por propiedad."), matchWrap(0, 0, 0, 14));
+
+        resultsLayout = new LinearLayout(this);
+        resultsLayout.setOrientation(LinearLayout.VERTICAL);
+        pageLayout.addView(card(resultsLayout), matchWrap(0, 0, 0, 0));
+        renderCurrentResults();
+        animateIntro();
+    }
+
+    private View resultsTopBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(12), dp(10), dp(12), dp(10));
+        bar.setBackground(roundedStroke(COLOR_SURFACE, COLOR_BORDER, dp(8)));
+
+        BackArrowView back = new BackArrowView(this);
+        back.setBackground(rounded(COLOR_SURFACE_2, dp(8)));
+        back.setOnClickListener(view -> showCalculatorScreen());
+        bar.addView(back, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+        TextView titleView = text("Resultados", 18, COLOR_TEXT, true);
+        titleView.setGravity(Gravity.CENTER_VERTICAL);
+        titleView.setPadding(dp(12), 0, 0, 0);
+        bar.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(getResources().getIdentifier("ic_thermowences_logo", "drawable", getPackageName()));
+        bar.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        return bar;
+    }
+
     private View screenHeader(String title, String subtitle) {
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
 
-        Button back = button("Volver al menú", COLOR_SURFACE_2, COLOR_TEXT);
-        back.setOnClickListener(view -> showMainMenu());
-        content.addView(back, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)));
-
         TextView titleView = text(title, 26, COLOR_TEXT, true);
-        titleView.setPadding(0, dp(14), 0, 0);
         content.addView(titleView, compactWrap());
         content.addView(body(subtitle), matchWrap(0, dp(4), 0, 0));
         return card(content);
@@ -604,7 +652,7 @@ public class MainActivity extends Activity {
         lastPdfEntries.addAll(entries);
         lastTemperature = temperature;
         addHistory(title, lines, entries, spec.key, temperature);
-        renderCurrentResults();
+        showResultsScreen();
     }
 
     private void clearResults() {
@@ -614,9 +662,6 @@ public class MainActivity extends Activity {
         if (resultsLayout != null) {
             resultsLayout.removeAllViews();
         }
-        if (resultsCard != null) {
-            resultsCard.setVisibility(View.GONE);
-        }
         lastPdfTitle = "";
         lastTableKey = "";
         lastPdfLines.clear();
@@ -625,28 +670,25 @@ public class MainActivity extends Activity {
     }
 
     private void renderCurrentResults() {
-        if (resultsLayout == null || resultsCard == null) {
+        if (resultsLayout == null) {
             return;
         }
         resultsLayout.removeAllViews();
-        resultsCard.setVisibility(View.VISIBLE);
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
-        header.addView(text("Resultados", 20, COLOR_TEXT, true), compactWrap());
         header.addView(text(lastPdfTitle, 15, COLOR_PRIMARY, true), matchWrap(0, dp(4), 0, 0));
         resultsLayout.addView(header, matchWrap(0, 0, 0, 10));
-
-        exportPdfButton = button("Exportar PDF", COLOR_ACCENT, 0xFF171208);
-        exportPdfButton.setOnClickListener(view -> exportPdf());
-        resultsLayout.addView(exportPdfButton, matchWrap(0, 0, 0, 12));
 
         for (int i = 0; i < lastPdfEntries.size(); i++) {
             View row = resultRow(lastPdfEntries.get(i));
             resultsLayout.addView(row, matchWrap(0, 0, 0, 10));
             animateView(row, i * 45L);
         }
-        animateView(resultsCard, 0);
+
+        exportPdfButton = button("Exportar PDF", COLOR_ACCENT, 0xFF171208);
+        exportPdfButton.setOnClickListener(view -> exportPdf());
+        resultsLayout.addView(exportPdfButton, matchWrap(0, dp(2), 0, 0));
     }
 
     private View resultRow(ResultEntry entry) {
@@ -808,7 +850,7 @@ public class MainActivity extends Activity {
         lastPdfLines.addAll(record.lines);
         lastPdfEntries.clear();
         lastPdfEntries.addAll(record.entries);
-        showCalculatorScreen();
+        showResultsScreen();
     }
 
     private void deleteHistoryRecord(CalculationRecord record) {
@@ -1452,8 +1494,8 @@ public class MainActivity extends Activity {
         return params;
     }
 
-    private LinearLayout.LayoutParams iconWrap(int top) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(52), dp(52));
+    private LinearLayout.LayoutParams navItemWrap(int top) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52));
         params.setMargins(0, top, 0, 0);
         return params;
     }
@@ -1745,6 +1787,44 @@ public class MainActivity extends Activity {
             canvas.drawCircle(left + dp(24), top + dp(28), dp(5), paint);
             paint.setColor(COLOR_ACCENT);
             canvas.drawCircle(left + dp(42), top + dp(28), dp(5), paint);
+        }
+    }
+
+    private final class BackArrowView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path arrow = new Path();
+
+        BackArrowView(Context context) {
+            super(context);
+            setPadding(dp(8), dp(8), dp(8), dp(8));
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float w = getWidth();
+            float h = getHeight();
+            float cx = w * 0.50f;
+            float cy = h * 0.50f;
+            float size = Math.min(w, h) * 0.30f;
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setStrokeWidth(dp(3));
+            paint.setColor(COLOR_TEXT);
+
+            arrow.reset();
+            arrow.moveTo(cx + size * 0.55f, cy - size);
+            arrow.lineTo(cx - size * 0.55f, cy);
+            arrow.lineTo(cx + size * 0.55f, cy + size);
+            canvas.drawPath(arrow, paint);
+            canvas.drawLine(cx - size * 0.45f, cy, cx + size * 1.10f, cy, paint);
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(1));
+            paint.setColor(withAlpha(COLOR_PRIMARY, 90));
+            canvas.drawCircle(cx, cy, size * 1.55f, paint);
         }
     }
 
