@@ -9,6 +9,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.pdf.PdfDocument;
 import android.net.Uri;
+import android.os.Build;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -62,6 +63,11 @@ public class MainActivity extends Activity {
     private static final int SCREEN_CALCULATOR = 1;
     private static final int SCREEN_HISTORY = 2;
     private static final int SCREEN_ABOUT = 3;
+    private static final int ICON_MENU = 0;
+    private static final int ICON_HOME = 1;
+    private static final int ICON_CALCULATE = 2;
+    private static final int ICON_HISTORY = 3;
+    private static final int ICON_INFO = 4;
     private static final int REQUEST_CREATE_PDF = 701;
     private static final String HISTORY_PREFS = "thermowences_history";
     private static final String HISTORY_KEY = "records";
@@ -121,8 +127,10 @@ public class MainActivity extends Activity {
     };
 
     private final Map<String, PropertyTable> tables = new HashMap<>();
+    private FrameLayout rootLayout;
     private LinearLayout pageLayout;
     private LinearLayout navDrawer;
+    private View navScrim;
     private boolean navOpen = false;
     private int currentScreen = SCREEN_MENU;
     private Spinner tableSpinner;
@@ -162,6 +170,9 @@ public class MainActivity extends Activity {
     }
 
     private void buildUi() {
+        rootLayout = new FrameLayout(this);
+        rootLayout.setBackgroundColor(COLOR_BG);
+
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(false);
         scrollView.setBackgroundColor(COLOR_BG);
@@ -170,13 +181,36 @@ public class MainActivity extends Activity {
         pageLayout.setOrientation(LinearLayout.VERTICAL);
         pageLayout.setPadding(dp(16), dp(32), dp(16), dp(86));
         scrollView.addView(pageLayout);
-        setContentView(scrollView);
+
+        rootLayout.addView(scrollView, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        navScrim = new View(this);
+        navScrim.setBackgroundColor(0x66000000);
+        navScrim.setVisibility(View.GONE);
+        navScrim.setOnClickListener(view -> closeNavDrawer());
+        rootLayout.addView(navScrim, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        navDrawer = buildNavDrawer();
+        navDrawer.setVisibility(View.GONE);
+        FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(dp(72), FrameLayout.LayoutParams.WRAP_CONTENT);
+        navParams.gravity = Gravity.START | Gravity.TOP;
+        navParams.leftMargin = dp(24);
+        navParams.topMargin = dp(96);
+        rootLayout.addView(navDrawer, navParams);
+
+        setContentView(rootLayout);
         showMainMenu();
     }
 
     private void showMainMenu() {
         currentScreen = SCREEN_MENU;
-        navOpen = false;
+        closeNavDrawer();
         pageLayout.removeAllViews();
         pageLayout.addView(topBar("TermoWences"), matchWrap(0, 0, 0, 12));
         pageLayout.addView(heroSection(), matchWrap(0, 0, 0, 14));
@@ -185,15 +219,13 @@ public class MainActivity extends Activity {
     }
 
     private View topBar(String title) {
-        FrameLayout frame = new FrameLayout(this);
-
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(12), dp(10), dp(12), dp(10));
         bar.setBackground(roundedStroke(COLOR_SURFACE, COLOR_BORDER, dp(8)));
 
-        TextView menu = iconButton("☰", COLOR_SURFACE_2, COLOR_TEXT);
+        View menu = navIconButton(ICON_MENU, "Abrir navegación", false);
         menu.setOnClickListener(view -> toggleNavDrawer());
         bar.addView(menu, new LinearLayout.LayoutParams(dp(48), dp(48)));
 
@@ -205,50 +237,32 @@ public class MainActivity extends Activity {
         ImageView logo = new ImageView(this);
         logo.setImageResource(getResources().getIdentifier("ic_thermowences_logo", "drawable", getPackageName()));
         bar.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
-        frame.addView(bar, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-
-        navDrawer = buildNavDrawer();
-        navDrawer.setVisibility(View.GONE);
-        FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(dp(184), FrameLayout.LayoutParams.WRAP_CONTENT);
-        navParams.gravity = Gravity.START | Gravity.TOP;
-        navParams.topMargin = dp(62);
-        frame.addView(navDrawer, navParams);
-        return frame;
+        return bar;
     }
 
     private LinearLayout buildNavDrawer() {
         LinearLayout drawer = new LinearLayout(this);
         drawer.setOrientation(LinearLayout.VERTICAL);
         drawer.setGravity(Gravity.CENTER_VERTICAL);
-        drawer.setPadding(dp(10), dp(10), dp(10), dp(10));
+        drawer.setPadding(dp(8), dp(8), dp(8), dp(8));
         drawer.setBackground(roundedStroke(0xF01A2024, COLOR_BORDER, dp(8)));
         drawer.setElevation(dp(8));
-        drawer.addView(navItem("⌂", "Inicio", SCREEN_MENU), navItemWrap(0));
-        drawer.addView(navItem("∑", "Calcular", SCREEN_CALCULATOR), navItemWrap(8));
-        drawer.addView(navItem("◷", "Historial", SCREEN_HISTORY), navItemWrap(8));
-        drawer.addView(navItem("ⓘ", "Info", SCREEN_ABOUT), navItemWrap(8));
+        refreshNavDrawer(drawer);
         return drawer;
     }
 
-    private View navItem(String icon, String label, int targetScreen) {
-        int bg = currentScreen == targetScreen ? COLOR_PRIMARY : COLOR_SURFACE_2;
-        int fg = currentScreen == targetScreen ? 0xFF07100F : COLOR_TEXT;
-        LinearLayout item = new LinearLayout(this);
-        item.setOrientation(LinearLayout.HORIZONTAL);
-        item.setGravity(Gravity.CENTER_VERTICAL);
-        item.setPadding(dp(8), 0, dp(10), 0);
-        item.setBackground(rounded(bg, dp(8)));
+    private void refreshNavDrawer(LinearLayout drawer) {
+        drawer.removeAllViews();
+        drawer.addView(navItem(ICON_HOME, "Inicio", SCREEN_MENU), navItemWrap(0));
+        drawer.addView(navItem(ICON_CALCULATE, "Calcular", SCREEN_CALCULATOR), navItemWrap(8));
+        drawer.addView(navItem(ICON_HISTORY, "Historial", SCREEN_HISTORY), navItemWrap(8));
+        drawer.addView(navItem(ICON_INFO, "Info", SCREEN_ABOUT), navItemWrap(8));
+    }
 
-        TextView iconView = navGlyph(icon, fg);
-        item.addView(iconView, new LinearLayout.LayoutParams(dp(42), dp(42)));
-
-        TextView labelView = text(label, 13, fg, true);
-        labelView.setGravity(Gravity.CENTER_VERTICAL);
-        labelView.setPadding(dp(8), 0, 0, 0);
-        item.addView(labelView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-
+    private View navItem(int iconType, String label, int targetScreen) {
+        View item = navIconButton(iconType, label, currentScreen == targetScreen);
         item.setOnClickListener(clicked -> {
-            navOpen = false;
+            closeNavDrawer();
             if (targetScreen == SCREEN_MENU) {
                 showMainMenu();
             } else if (targetScreen == SCREEN_CALCULATOR) {
@@ -270,17 +284,20 @@ public class MainActivity extends Activity {
         return item;
     }
 
-    private TextView navGlyph(String icon, int textColor) {
-        TextView view = text(icon, 22, textColor, true);
-        view.setGravity(Gravity.CENTER);
-        view.setIncludeFontPadding(false);
-        return view;
-    }
-
-    private TextView iconButton(String icon, int background, int textColor) {
-        TextView view = text(icon, 24, textColor, true);
-        view.setGravity(Gravity.CENTER);
-        view.setBackground(rounded(background, dp(8)));
+    private View navIconButton(int iconType, String label, boolean selected) {
+        int bg = selected ? COLOR_PRIMARY : COLOR_SURFACE_2;
+        int fg = selected ? 0xFF07100F : COLOR_TEXT;
+        NavIconView view = new NavIconView(this, iconType, fg);
+        view.setBackground(rounded(bg, dp(8)));
+        view.setContentDescription(label);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            view.setTooltipText(label);
+        } else {
+            view.setOnLongClickListener(target -> {
+                showMessage(label);
+                return true;
+            });
+        }
         view.setOnTouchListener((target, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 target.animate().scaleX(0.94f).scaleY(0.94f).setDuration(90).start();
@@ -297,9 +314,23 @@ public class MainActivity extends Activity {
             return;
         }
         navOpen = !navOpen;
-        navDrawer.setVisibility(navOpen ? View.VISIBLE : View.GONE);
         if (navOpen) {
+            refreshNavDrawer(navDrawer);
+            navScrim.setVisibility(View.VISIBLE);
+            navDrawer.setVisibility(View.VISIBLE);
             animateView(navDrawer, 0);
+        } else {
+            closeNavDrawer();
+        }
+    }
+
+    private void closeNavDrawer() {
+        navOpen = false;
+        if (navScrim != null) {
+            navScrim.setVisibility(View.GONE);
+        }
+        if (navDrawer != null) {
+            navDrawer.setVisibility(View.GONE);
         }
     }
 
@@ -339,7 +370,7 @@ public class MainActivity extends Activity {
 
     private void showCalculatorScreen() {
         currentScreen = SCREEN_CALCULATOR;
-        navOpen = false;
+        closeNavDrawer();
         pageLayout.removeAllViews();
         pageLayout.addView(topBar("Calcular"), matchWrap(0, 0, 0, 12));
         pageLayout.addView(screenHeader("Calcular", "Consulta propiedades y revisa gráficos individuales por resultado."), matchWrap(0, 0, 0, 14));
@@ -364,7 +395,7 @@ public class MainActivity extends Activity {
 
     private void showHistoryScreen() {
         currentScreen = SCREEN_HISTORY;
-        navOpen = false;
+        closeNavDrawer();
         pageLayout.removeAllViews();
         pageLayout.addView(topBar("Historial"), matchWrap(0, 0, 0, 12));
         pageLayout.addView(screenHeader("Historial", "Reabre, exporta o elimina cálculos guardados."), matchWrap(0, 0, 0, 14));
@@ -377,7 +408,7 @@ public class MainActivity extends Activity {
 
     private void showAboutScreen() {
         currentScreen = SCREEN_ABOUT;
-        navOpen = false;
+        closeNavDrawer();
         pageLayout.removeAllViews();
         pageLayout.addView(topBar("Acerca de"), matchWrap(0, 0, 0, 12));
         pageLayout.addView(screenHeader("Acerca de", "Información académica y alcance del software."), matchWrap(0, 0, 0, 14));
@@ -387,7 +418,7 @@ public class MainActivity extends Activity {
     }
 
     private void showResultsScreen() {
-        navOpen = false;
+        closeNavDrawer();
         pageLayout.removeAllViews();
         pageLayout.addView(resultsTopBar(), matchWrap(0, 0, 0, 12));
         pageLayout.addView(screenHeader("Resultados", "Valores interpolados y gráficos por propiedad."), matchWrap(0, 0, 0, 14));
@@ -1495,7 +1526,7 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams navItemWrap(int top) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(56), dp(56));
         params.setMargins(0, top, 0, 0);
         return params;
     }
@@ -1825,6 +1856,95 @@ public class MainActivity extends Activity {
             paint.setStrokeWidth(dp(1));
             paint.setColor(withAlpha(COLOR_PRIMARY, 90));
             canvas.drawCircle(cx, cy, size * 1.55f, paint);
+        }
+    }
+
+    private final class NavIconView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final int iconType;
+        private final int iconColor;
+
+        NavIconView(Context context, int iconType, int iconColor) {
+            super(context);
+            this.iconType = iconType;
+            this.iconColor = iconColor;
+            setPadding(dp(10), dp(10), dp(10), dp(10));
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float w = getWidth();
+            float h = getHeight();
+            float cx = w * 0.5f;
+            float cy = h * 0.5f;
+            float size = Math.min(w, h) * 0.26f;
+
+            paint.setAntiAlias(true);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setStrokeWidth(Math.max(2f, dp(3)));
+            paint.setColor(iconColor);
+
+            if (iconType == ICON_MENU) {
+                float left = cx - size;
+                float right = cx + size;
+                canvas.drawLine(left, cy - size * 0.72f, right, cy - size * 0.72f, paint);
+                canvas.drawLine(left, cy, right, cy, paint);
+                canvas.drawLine(left, cy + size * 0.72f, right, cy + size * 0.72f, paint);
+                return;
+            }
+
+            if (iconType == ICON_HOME) {
+                path.reset();
+                path.moveTo(cx - size * 1.05f, cy - size * 0.05f);
+                path.lineTo(cx, cy - size * 0.98f);
+                path.lineTo(cx + size * 1.05f, cy - size * 0.05f);
+                canvas.drawPath(path, paint);
+                canvas.drawLine(cx - size * 0.78f, cy - size * 0.02f, cx - size * 0.78f, cy + size * 0.95f, paint);
+                canvas.drawLine(cx + size * 0.78f, cy - size * 0.02f, cx + size * 0.78f, cy + size * 0.95f, paint);
+                canvas.drawLine(cx - size * 0.78f, cy + size * 0.95f, cx + size * 0.78f, cy + size * 0.95f, paint);
+                return;
+            }
+
+            if (iconType == ICON_CALCULATE) {
+                float left = cx - size * 1.1f;
+                float bottom = cy + size * 0.9f;
+                canvas.drawLine(left, cy - size * 0.9f, left, bottom, paint);
+                canvas.drawLine(left, bottom, cx + size * 1.15f, bottom, paint);
+                path.reset();
+                for (int i = 0; i <= 24; i++) {
+                    float x = left + size * 0.22f + size * 1.85f * i / 24f;
+                    float y = cy + (float) Math.sin(i / 24f * Math.PI * 1.35f + Math.PI) * size * 0.55f;
+                    if (i == 0) {
+                        path.moveTo(x, y);
+                    } else {
+                        path.lineTo(x, y);
+                    }
+                }
+                canvas.drawPath(path, paint);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(cx + size * 0.48f, cy - size * 0.45f, size * 0.15f, paint);
+                paint.setStyle(Paint.Style.STROKE);
+                return;
+            }
+
+            if (iconType == ICON_HISTORY) {
+                canvas.drawCircle(cx, cy, size * 1.05f, paint);
+                canvas.drawLine(cx, cy, cx, cy - size * 0.62f, paint);
+                canvas.drawLine(cx, cy, cx + size * 0.55f, cy + size * 0.28f, paint);
+                paint.setStrokeWidth(Math.max(1.5f, dp(2)));
+                canvas.drawArc(cx - size * 1.28f, cy - size * 1.28f, cx + size * 1.28f, cy + size * 1.28f, 205, 70, false, paint);
+                return;
+            }
+
+            canvas.drawCircle(cx, cy, size * 1.05f, paint);
+            paint.setStyle(Paint.Style.FILL);
+            canvas.drawCircle(cx, cy - size * 0.52f, size * 0.13f, paint);
+            paint.setStyle(Paint.Style.STROKE);
+            canvas.drawLine(cx, cy - size * 0.08f, cx, cy + size * 0.58f, paint);
         }
     }
 
