@@ -1,20 +1,26 @@
 package org.wences.propiedadestermicas;
 
 import android.app.Activity;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Shader;
 import android.graphics.pdf.PdfDocument;
 import android.net.Uri;
 import android.os.Build;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -22,6 +28,8 @@ import android.view.Window;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.AnimationSet;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.view.animation.TranslateAnimation;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
@@ -49,15 +57,15 @@ import java.util.Locale;
 import java.util.Map;
 
 public class MainActivity extends Activity {
-    private static final int COLOR_BG = 0xFF101416;
-    private static final int COLOR_SURFACE = 0xFF171D21;
-    private static final int COLOR_SURFACE_2 = 0xFF20282D;
-    private static final int COLOR_BORDER = 0xFF2C383E;
-    private static final int COLOR_TEXT = 0xFFF3F6F7;
-    private static final int COLOR_MUTED = 0xFFA7B2B7;
-    private static final int COLOR_PRIMARY = 0xFF5DA399;
-    private static final int COLOR_SECONDARY = 0xFF5B8FA3;
-    private static final int COLOR_ACCENT = 0xFFC6A15B;
+    private static final int COLOR_BG = 0xFF0F1A18;
+    private static final int COLOR_SURFACE = 0xFF1A2724;
+    private static final int COLOR_SURFACE_2 = 0xFF1E2A28;
+    private static final int COLOR_BORDER = 0x6631C7A0;
+    private static final int COLOR_TEXT = 0xFFF0F0F0;
+    private static final int COLOR_MUTED = 0xBFF0F0F0;
+    private static final int COLOR_PRIMARY = 0xFF2DC89A;
+    private static final int COLOR_SECONDARY = 0xFF55AEB4;
+    private static final int COLOR_ACCENT = 0xFFE8A930;
     private static final int COLOR_DANGER = 0xFFB85C5C;
     private static final int SCREEN_MENU = 0;
     private static final int SCREEN_CALCULATOR = 1;
@@ -68,6 +76,10 @@ public class MainActivity extends Activity {
     private static final int ICON_CALCULATE = 2;
     private static final int ICON_HISTORY = 3;
     private static final int ICON_INFO = 4;
+    private static final int ICON_DATABASE = 5;
+    private static final int ICON_READING = 6;
+    private static final int ICON_REPORT = 7;
+    private static final int ICON_CURVE = 8;
     private static final int REQUEST_CREATE_PDF = 701;
     private static final String HISTORY_PREFS = "thermowences_history";
     private static final String HISTORY_KEY = "records";
@@ -128,6 +140,7 @@ public class MainActivity extends Activity {
 
     private final Map<String, PropertyTable> tables = new HashMap<>();
     private FrameLayout rootLayout;
+    private ScrollView mainScrollView;
     private LinearLayout pageLayout;
     private LinearLayout navDrawer;
     private View navScrim;
@@ -142,6 +155,7 @@ public class MainActivity extends Activity {
     private LinearLayout historyLayout;
     private Button exportPdfButton;
     private final List<CalculationRecord> history = new ArrayList<>();
+    private final List<View> pendingRevealViews = new ArrayList<>();
     private final List<String> lastPdfLines = new ArrayList<>();
     private final List<ResultEntry> lastPdfEntries = new ArrayList<>();
     private String lastPdfTitle = "";
@@ -173,16 +187,17 @@ public class MainActivity extends Activity {
         rootLayout = new FrameLayout(this);
         rootLayout.setBackgroundColor(COLOR_BG);
 
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setFillViewport(false);
-        scrollView.setBackgroundColor(COLOR_BG);
+        mainScrollView = new ScrollView(this);
+        mainScrollView.setFillViewport(false);
+        mainScrollView.setBackgroundColor(COLOR_BG);
+        mainScrollView.setOnScrollChangeListener((view, scrollX, scrollY, oldScrollX, oldScrollY) -> checkScrollRevealViews());
 
         pageLayout = new LinearLayout(this);
         pageLayout.setOrientation(LinearLayout.VERTICAL);
         pageLayout.setPadding(dp(16), dp(32), dp(16), dp(86));
-        scrollView.addView(pageLayout);
+        mainScrollView.addView(pageLayout);
 
-        rootLayout.addView(scrollView, new FrameLayout.LayoutParams(
+        rootLayout.addView(mainScrollView, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
@@ -211,6 +226,7 @@ public class MainActivity extends Activity {
     private void showMainMenu() {
         currentScreen = SCREEN_MENU;
         closeNavDrawer();
+        pendingRevealViews.clear();
         pageLayout.removeAllViews();
         pageLayout.addView(topBar("TermoWences"), matchWrap(0, 0, 0, 12));
         pageLayout.addView(heroSection(), matchWrap(0, 0, 0, 14));
@@ -223,10 +239,14 @@ public class MainActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(12), dp(10), dp(12), dp(10));
-        bar.setBackground(roundedStroke(COLOR_SURFACE, COLOR_BORDER, dp(8)));
+        bar.setBackground(roundedStroke(0xD91A2724, 0x5531C7A0, dp(12)));
+        bar.setElevation(dp(6));
 
         View menu = navIconButton(ICON_MENU, "Abrir navegación", false);
-        menu.setOnClickListener(view -> toggleNavDrawer());
+        menu.setOnClickListener(view -> {
+            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            toggleNavDrawer();
+        });
         bar.addView(menu, new LinearLayout.LayoutParams(dp(48), dp(48)));
 
         TextView titleView = text(title, 18, COLOR_TEXT, true);
@@ -237,6 +257,7 @@ public class MainActivity extends Activity {
         ImageView logo = new ImageView(this);
         logo.setImageResource(getResources().getIdentifier("ic_thermowences_logo", "drawable", getPackageName()));
         bar.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        animateScaleIn(logo, 120);
         return bar;
     }
 
@@ -262,6 +283,7 @@ public class MainActivity extends Activity {
     private View navItem(int iconType, String label, int targetScreen) {
         View item = navIconButton(iconType, label, currentScreen == targetScreen);
         item.setOnClickListener(clicked -> {
+            clicked.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             closeNavDrawer();
             if (targetScreen == SCREEN_MENU) {
                 showMainMenu();
@@ -288,7 +310,7 @@ public class MainActivity extends Activity {
         int bg = selected ? COLOR_PRIMARY : COLOR_SURFACE_2;
         int fg = selected ? 0xFF07100F : COLOR_TEXT;
         NavIconView view = new NavIconView(this, iconType, fg);
-        view.setBackground(rounded(bg, dp(8)));
+        view.setBackground(rippleBackground(bg, withAlpha(COLOR_PRIMARY, 70), dp(8)));
         view.setContentDescription(label);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             view.setTooltipText(label);
@@ -335,12 +357,24 @@ public class MainActivity extends Activity {
     }
 
     private View menuSummary() {
-        LinearLayout content = section("Panel técnico");
-        content.addView(body("Abre la navegación con el icono superior y trabaja por módulos. La consulta está pensada para cálculos de termodinámica, fluidos y transferencia de calor."), matchWrap(0, dp(4), 0, 12));
-        content.addView(metricsRow(), matchWrap(0, 0, 0, 12));
-        content.addView(feature("Base de consulta", "agua, aire seco y vapor saturado con interpolación cúbica."));
-        content.addView(feature("Lectura técnica", "cada propiedad incluye valor, unidad, explicación y tendencia gráfica."));
-        content.addView(feature("Entrega", "el reporte PDF conserva el orden de resultados y gráficos por propiedad."));
+        LinearLayout content = section("Panel técnico", 22);
+        TextView subtitle = text("Trabaja por módulos con una interfaz enfocada en análisis térmico, reportes y lectura gráfica.", 14, COLOR_MUTED, false);
+        subtitle.setLineSpacing(0, 1.6f);
+        content.addView(subtitle, matchWrap(0, dp(6), 0, 14));
+        View metrics = metricsRow();
+        content.addView(metrics, matchWrap(0, 0, 0, 14));
+        View chipOne = technicalChip(ICON_DATABASE, "Base de consulta", "Agua, aire seco y vapor saturado con interpolación cúbica.");
+        View chipTwo = technicalChip(ICON_CURVE, "Lectura técnica", "Cada propiedad incluye valor, unidad, explicación y tendencia gráfica.");
+        View chipThree = technicalChip(ICON_REPORT, "Entrega PDF", "El reporte PDF conserva el orden de resultados y gráficos por propiedad.");
+        content.addView(chipOne);
+        content.addView(gradientDivider(), matchWrap(0, dp(10), 0, dp(2)));
+        content.addView(chipTwo);
+        content.addView(gradientDivider(), matchWrap(0, dp(10), 0, dp(2)));
+        content.addView(chipThree);
+        content.post(() -> {
+            animateRevealUp(metrics, 0);
+            checkScrollRevealViews();
+        });
         return card(content);
     }
 
@@ -358,14 +392,60 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
         box.setPadding(dp(8), dp(10), dp(8), dp(10));
-        box.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
-        TextView valueView = text(value, 18, COLOR_PRIMARY, true);
+        box.setBackground(rippleBackground(COLOR_PRIMARY, withAlpha(COLOR_ACCENT, 70), dp(24)));
+        box.setElevation(dp(4));
+        box.setOnClickListener(view -> view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP));
+        TextView valueView = text(value, 18, 0xFF06120F, true);
         valueView.setGravity(Gravity.CENTER);
         box.addView(valueView, compactWrap());
-        TextView labelView = text(label, 11, COLOR_MUTED, false);
+        TextView labelView = text(label, 11, 0xCC06120F, false);
         labelView.setGravity(Gravity.CENTER);
         box.addView(labelView, compactWrap());
         return box;
+    }
+
+    private View technicalChip(int iconType, String title, String detail) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(0, 0, dp(14), 0);
+        card.setBackground(rounded(COLOR_SURFACE_2, dp(14)));
+        card.setElevation(dp(5));
+
+        View accent = new View(this);
+        accent.setBackgroundColor(COLOR_PRIMARY);
+        card.addView(accent, new LinearLayout.LayoutParams(dp(3), dp(76)));
+
+        LinearLayout chip = new LinearLayout(this);
+        chip.setOrientation(LinearLayout.HORIZONTAL);
+        chip.setGravity(Gravity.CENTER_VERTICAL);
+        chip.setPadding(dp(12), dp(12), 0, dp(12));
+
+        NavIconView icon = new NavIconView(this, iconType, COLOR_PRIMARY);
+        icon.setBackground(rounded(withAlpha(COLOR_PRIMARY, 18), dp(12)));
+        chip.addView(icon, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        LinearLayout textBlock = new LinearLayout(this);
+        textBlock.setOrientation(LinearLayout.VERTICAL);
+        textBlock.setPadding(dp(12), 0, 0, 0);
+        TextView titleView = text(title, 14, COLOR_TEXT, false);
+        titleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        textBlock.addView(titleView, compactWrap());
+        TextView detailView = text(detail, 13, 0xFF9DB5B0, false);
+        detailView.setLineSpacing(0, 1.18f);
+        textBlock.addView(detailView, matchWrap(0, dp(2), 0, 0));
+        chip.addView(textBlock, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        card.addView(chip, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        View wrapper = wrapWithMargin(card, 0, dp(8), 0, 0);
+        registerScrollReveal(wrapper);
+        return wrapper;
+    }
+
+    private View gradientDivider() {
+        GradientDividerView divider = new GradientDividerView(this);
+        divider.setAlpha(0.85f);
+        return divider;
     }
 
     private void showCalculatorScreen() {
@@ -479,8 +559,8 @@ public class MainActivity extends Activity {
         LinearLayout hero = new LinearLayout(this);
         hero.setOrientation(LinearLayout.VERTICAL);
         hero.setPadding(dp(18), dp(18), dp(18), dp(16));
-        hero.setBackground(gradient(0xFF12191D, 0xFF224943, dp(8)));
-        hero.setElevation(dp(4));
+        hero.setBackground(gradient(0xFF0D2B25, 0xFF1A4A3C, dp(16)));
+        hero.setElevation(dp(6));
 
         LinearLayout brandRow = new LinearLayout(this);
         brandRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -489,12 +569,14 @@ public class MainActivity extends Activity {
         ImageView logo = new ImageView(this);
         logo.setImageResource(getResources().getIdentifier("ic_thermowences_logo", "drawable", getPackageName()));
         brandRow.addView(logo, new LinearLayout.LayoutParams(dp(64), dp(64)));
+        animateScaleIn(logo, 80);
 
         LinearLayout brandText = new LinearLayout(this);
         brandText.setOrientation(LinearLayout.VERTICAL);
         brandText.setPadding(dp(12), 0, 0, 0);
-        brandText.addView(text("TermoWences", 27, 0xFFFFFFFF, true), compactWrap());
-        brandText.addView(text("Propiedades térmicas para ingeniería", 14, COLOR_MUTED, false), compactWrap());
+        brandText.addView(text("TermoWences", 28, 0xFFFFFFFF, true), compactWrap());
+        TextView subtitle = text("Propiedades térmicas para ingeniería", 14, 0xBFFFFFFF, false);
+        brandText.addView(subtitle, compactWrap());
         brandRow.addView(brandText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         hero.addView(brandRow, matchWrap(0, 0, 0, 14));
 
@@ -594,9 +676,15 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout section(String title) {
+        return section(title, 20);
+    }
+
+    private LinearLayout section(String title, int titleSize) {
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.addView(text(title, 20, COLOR_TEXT, true), compactWrap());
+        TextView titleView = text(title, titleSize, COLOR_TEXT, true);
+        titleView.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        content.addView(titleView, compactWrap());
         return content;
     }
 
@@ -770,9 +858,7 @@ public class MainActivity extends Activity {
         view.setTextColor(color);
         view.setTextSize(sp);
         view.setLineSpacing(0, 1.1f);
-        if (bold) {
-            view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        }
+        view.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
         return view;
     }
 
@@ -811,12 +897,15 @@ public class MainActivity extends Activity {
         button.setTextColor(textColor);
         button.setTextSize(14);
         button.setAllCaps(false);
-        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        button.setBackground(rounded(background, dp(8)));
+        button.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        button.setBackground(rippleBackground(background, withAlpha(COLOR_PRIMARY, 70), dp(8)));
         button.setOnTouchListener((view, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 view.animate().scaleX(0.97f).scaleY(0.97f).setDuration(90).start();
             } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                if (event.getAction() == MotionEvent.ACTION_UP) {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                }
                 view.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
             }
             return false;
@@ -1503,6 +1592,14 @@ public class MainActivity extends Activity {
         return drawable;
     }
 
+    private RippleDrawable rippleBackground(int color, int rippleColor, int radius) {
+        return new RippleDrawable(
+            ColorStateList.valueOf(rippleColor),
+            rounded(color, radius),
+            null
+        );
+    }
+
     private GradientDrawable gradient(int start, int end, int radius) {
         GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[] {start, end});
         drawable.setCornerRadius(radius);
@@ -1557,8 +1654,73 @@ public class MainActivity extends Activity {
         view.startAnimation(set);
     }
 
+    private void animateRevealUp(View view, long offset) {
+        AnimationSet set = new AnimationSet(true);
+        set.setInterpolator(new DecelerateInterpolator());
+        set.setDuration(300);
+        set.setStartOffset(offset);
+        AlphaAnimation fade = new AlphaAnimation(0f, 1f);
+        TranslateAnimation slide = new TranslateAnimation(0, 0, dp(20), 0);
+        set.addAnimation(fade);
+        set.addAnimation(slide);
+        view.startAnimation(set);
+    }
+
+    private void registerScrollReveal(View view) {
+        view.setAlpha(0f);
+        view.setTranslationY(dp(20));
+        pendingRevealViews.add(view);
+    }
+
+    private void checkScrollRevealViews() {
+        if (pendingRevealViews.isEmpty()) {
+            return;
+        }
+        int[] screenPosition = new int[2];
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int revealed = 0;
+        for (int i = pendingRevealViews.size() - 1; i >= 0; i--) {
+            View view = pendingRevealViews.get(i);
+            if (view.getWindowToken() == null) {
+                continue;
+            }
+            view.getLocationOnScreen(screenPosition);
+            int top = screenPosition[1];
+            int bottom = top + view.getHeight();
+            if (top < screenHeight - dp(24) && bottom > dp(24)) {
+                view.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setStartDelay(revealed * 80L)
+                    .setDuration(300)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+                pendingRevealViews.remove(i);
+                revealed++;
+            }
+        }
+    }
+
+    private void animateScaleIn(View view, long offset) {
+        view.setScaleX(0.82f);
+        view.setScaleY(0.82f);
+        view.setAlpha(0f);
+        view.animate()
+            .scaleX(1f)
+            .scaleY(1f)
+            .alpha(1f)
+            .setStartDelay(offset)
+            .setDuration(200)
+            .setInterpolator(new AccelerateDecelerateInterpolator())
+            .start();
+    }
+
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private float dp(float value) {
+        return value * getResources().getDisplayMetrics().density;
     }
 
     private void showMessage(String message) {
@@ -1737,10 +1899,33 @@ public class MainActivity extends Activity {
     private final class EngineeringHeroVisual extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
+        private float wavePhase = 0f;
+        private ValueAnimator waveAnimator;
 
         EngineeringHeroVisual(Context context) {
             super(context);
             setPadding(dp(12), dp(12), dp(12), dp(12));
+            startWaveAnimation();
+        }
+
+        private void startWaveAnimation() {
+            waveAnimator = ValueAnimator.ofFloat(0f, (float) (Math.PI * 2));
+            waveAnimator.setDuration(4000);
+            waveAnimator.setRepeatCount(ValueAnimator.INFINITE);
+            waveAnimator.setInterpolator(new LinearInterpolator());
+            waveAnimator.addUpdateListener(animation -> {
+                wavePhase = (float) animation.getAnimatedValue();
+                invalidate();
+            });
+            waveAnimator.start();
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            if (waveAnimator != null) {
+                waveAnimator.cancel();
+            }
+            super.onDetachedFromWindow();
         }
 
         @Override
@@ -1755,10 +1940,10 @@ public class MainActivity extends Activity {
             float bottom = h - pad;
 
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(0xFF12191D);
+            paint.setColor(0xFF10211E);
             canvas.drawRoundRect(left, top, right, bottom, dp(8), dp(8), paint);
 
-            paint.setColor(0xFF172327);
+            paint.setColor(0xFF162925);
             canvas.drawRoundRect(left + dp(12), top + dp(12), right - dp(12), bottom - dp(12), dp(8), dp(8), paint);
 
             paint.setStyle(Paint.Style.STROKE);
@@ -1785,20 +1970,9 @@ public class MainActivity extends Activity {
                 canvas.drawCircle(x, top + dp(64) + (i % 2) * dp(10), dp(3), paint);
             }
 
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dp(2));
-            paint.setColor(COLOR_ACCENT);
-            path.reset();
-            for (int i = 0; i <= 40; i++) {
-                float x = left + dp(34) + (right - left - dp(68)) * i / 40f;
-                float y = bottom - dp(38) - (float) Math.sin(i / 40f * Math.PI * 2.1f) * dp(18) - i * 0.45f;
-                if (i == 0) {
-                    path.moveTo(x, y);
-                } else {
-                    path.lineTo(x, y);
-                }
-            }
-            canvas.drawPath(path, paint);
+            drawThermalWave(canvas, left, right, bottom, 0f, COLOR_ACCENT, dp(2.4f), 1f);
+            drawThermalWave(canvas, left, right, bottom, 1.25f, COLOR_PRIMARY, dp(1.8f), 0.58f);
+            drawThermalWave(canvas, left, right, bottom, 2.45f, COLOR_SECONDARY, dp(1.5f), 0.42f);
 
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(0xFF0F1416);
@@ -1818,6 +1992,27 @@ public class MainActivity extends Activity {
             canvas.drawCircle(left + dp(24), top + dp(28), dp(5), paint);
             paint.setColor(COLOR_ACCENT);
             canvas.drawCircle(left + dp(42), top + dp(28), dp(5), paint);
+        }
+
+        private void drawThermalWave(Canvas canvas, float left, float right, float bottom, float phaseOffset, int color, float width, float amplitudeScale) {
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(width);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setColor(withAlpha(color, (int) (255 * amplitudeScale)));
+            path.reset();
+            for (int i = 0; i <= 52; i++) {
+                float x = left + dp(34) + (right - left - dp(68)) * i / 52f;
+                float normal = i / 52f;
+                float y = bottom - dp(38)
+                    - (float) Math.sin(normal * Math.PI * 2.1f + wavePhase + phaseOffset) * dp(18) * amplitudeScale
+                    - i * 0.42f;
+                if (i == 0) {
+                    path.moveTo(x, y);
+                } else {
+                    path.lineTo(x, y);
+                }
+            }
+            canvas.drawPath(path, paint);
         }
     }
 
@@ -1859,6 +2054,36 @@ public class MainActivity extends Activity {
         }
     }
 
+    private final class GradientDividerView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        GradientDividerView(Context context) {
+            super(context);
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            int width = View.MeasureSpec.getSize(widthMeasureSpec);
+            setMeasuredDimension(width, dp(1));
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            paint.setShader(new LinearGradient(
+                0,
+                0,
+                getWidth(),
+                0,
+                COLOR_PRIMARY,
+                0x002DC89A,
+                Shader.TileMode.CLAMP
+            ));
+            canvas.drawRect(0, 0, getWidth(), getHeight(), paint);
+            paint.setShader(null);
+        }
+    }
+
     private final class NavIconView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
@@ -1887,6 +2112,7 @@ public class MainActivity extends Activity {
             paint.setStrokeJoin(Paint.Join.ROUND);
             paint.setStrokeWidth(Math.max(2f, dp(3)));
             paint.setColor(iconColor);
+            paint.setTypeface(Typeface.DEFAULT);
 
             if (iconType == ICON_MENU) {
                 float left = cx - size;
@@ -1937,6 +2163,70 @@ public class MainActivity extends Activity {
                 canvas.drawLine(cx, cy, cx + size * 0.55f, cy + size * 0.28f, paint);
                 paint.setStrokeWidth(Math.max(1.5f, dp(2)));
                 canvas.drawArc(cx - size * 1.28f, cy - size * 1.28f, cx + size * 1.28f, cy + size * 1.28f, 205, 70, false, paint);
+                return;
+            }
+
+            if (iconType == ICON_DATABASE) {
+                float left = cx - size * 0.9f;
+                float right = cx + size * 0.9f;
+                float top = cy - size * 0.85f;
+                float bottom = cy + size * 0.85f;
+                canvas.drawOval(left, top - size * 0.25f, right, top + size * 0.25f, paint);
+                canvas.drawLine(left, top, left, bottom, paint);
+                canvas.drawLine(right, top, right, bottom, paint);
+                canvas.drawOval(left, bottom - size * 0.25f, right, bottom + size * 0.25f, paint);
+                canvas.drawArc(left, cy - size * 0.25f, right, cy + size * 0.25f, 0, 180, false, paint);
+                float lensCx = cx + size * 0.52f;
+                float lensCy = cy + size * 0.52f;
+                canvas.drawCircle(lensCx, lensCy, size * 0.34f, paint);
+                canvas.drawLine(lensCx + size * 0.24f, lensCy + size * 0.24f, lensCx + size * 0.55f, lensCy + size * 0.55f, paint);
+                return;
+            }
+
+            if (iconType == ICON_READING) {
+                float left = cx - size;
+                float right = cx + size;
+                float top = cy - size * 0.85f;
+                float lineGap = size * 0.52f;
+                canvas.drawRoundRect(left, top, right, cy + size * 0.85f, dp(5), dp(5), paint);
+                canvas.drawLine(left + size * 0.35f, top + lineGap, right - size * 0.35f, top + lineGap, paint);
+                canvas.drawLine(left + size * 0.35f, top + lineGap * 1.7f, right - size * 0.35f, top + lineGap * 1.7f, paint);
+                canvas.drawLine(left + size * 0.35f, top + lineGap * 2.4f, right - size * 0.65f, top + lineGap * 2.4f, paint);
+                return;
+            }
+
+            if (iconType == ICON_REPORT) {
+                float left = cx - size * 0.8f;
+                float top = cy - size;
+                float right = cx + size * 0.8f;
+                float bottom = cy + size;
+                canvas.drawRoundRect(left, top, right, bottom, dp(5), dp(5), paint);
+                canvas.drawLine(left + size * 0.28f, cy - size * 0.35f, right - size * 0.28f, cy - size * 0.35f, paint);
+                canvas.drawLine(left + size * 0.28f, cy + size * 0.05f, right - size * 0.28f, cy + size * 0.05f, paint);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                paint.setTextSize(size * 0.44f);
+                canvas.drawText("PDF", left + size * 0.25f, cy + size * 0.65f, paint);
+                paint.setStyle(Paint.Style.STROKE);
+                return;
+            }
+
+            if (iconType == ICON_CURVE) {
+                float left = cx - size;
+                float bottom = cy + size * 0.82f;
+                canvas.drawLine(left, cy - size * 0.82f, left, bottom, paint);
+                canvas.drawLine(left, bottom, cx + size, bottom, paint);
+                path.reset();
+                for (int i = 0; i <= 24; i++) {
+                    float x = left + size * 0.18f + size * 1.62f * i / 24f;
+                    float y = cy + (float) Math.sin(i / 24f * Math.PI * 1.6f + Math.PI) * size * 0.45f;
+                    if (i == 0) {
+                        path.moveTo(x, y);
+                    } else {
+                        path.lineTo(x, y);
+                    }
+                }
+                canvas.drawPath(path, paint);
                 return;
             }
 
