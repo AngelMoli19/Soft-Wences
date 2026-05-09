@@ -1,12 +1,17 @@
 package org.wences.propiedadestermicas;
 
 import android.app.Activity;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
+import android.graphics.DashPathEffect;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -18,12 +23,13 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.Window;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AlphaAnimation;
@@ -32,14 +38,13 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LinearInterpolator;
 import android.view.animation.TranslateAnimation;
 import android.view.inputmethod.EditorInfo;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import android.widget.ScrollView;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -49,6 +54,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -71,6 +77,7 @@ public class MainActivity extends Activity {
     private static final int SCREEN_CALCULATOR = 1;
     private static final int SCREEN_HISTORY = 2;
     private static final int SCREEN_ABOUT = 3;
+    private static final int SCREEN_RESULTS = 4;
     private static final int ICON_MENU = 0;
     private static final int ICON_HOME = 1;
     private static final int ICON_CALCULATE = 2;
@@ -80,6 +87,18 @@ public class MainActivity extends Activity {
     private static final int ICON_READING = 6;
     private static final int ICON_REPORT = 7;
     private static final int ICON_CURVE = 8;
+    private static final int ICON_DROPLET = 9;
+    private static final int ICON_WIND = 10;
+    private static final int ICON_CLOUD = 11;
+    private static final int ICON_THERMOMETER = 12;
+    private static final int ICON_TRASH = 13;
+    private static final int ICON_DOTS = 14;
+    private static final int ICON_EMPTY_HISTORY = 15;
+    private static final int ICON_BOLT = 16;
+    private static final int ICON_RULER = 17;
+    private static final int ICON_LIST = 18;
+    private static final int ICON_COPY = 19;
+    private static final int ICON_CHECK = 20;
     private static final int REQUEST_CREATE_PDF = 701;
     private static final String HISTORY_PREFS = "thermowences_history";
     private static final String HISTORY_KEY = "records";
@@ -142,18 +161,47 @@ public class MainActivity extends Activity {
     private FrameLayout rootLayout;
     private ScrollView mainScrollView;
     private LinearLayout pageLayout;
+    private FrameLayout navBar;
+    private TextView navTitleView;
+    private boolean navHidden = false;
+    private int lastScrollY = 0;
+    private boolean enableNavScrollHide = false;
     private LinearLayout navDrawer;
     private View navScrim;
     private boolean navOpen = false;
     private int currentScreen = SCREEN_MENU;
-    private Spinner tableSpinner;
-    private TextView inputLabel;
-    private TextView tableDescription;
-    private TextView tableRange;
+    private int selectedTableIndex = 0;
     private EditText temperatureInput;
+    private FrameLayout segmentFrame;
+    private LinearLayout segmentContainer;
+    private View segmentIndicator;
+    private final List<TextView> segmentButtons = new ArrayList<>();
+    private LinearLayout fluidInfoCard;
+    private TextView fluidTitleView;
+    private TextView fluidDescriptionView;
+    private LinearLayout fluidIconFrame;
+    private LinearLayout rangeBadge;
+    private TextView rangeBadgeText;
+    private TextView rangeTooltip;
+    private FrameLayout temperatureField;
+    private TextView floatingLabel;
+    private TextView temperatureSuffix;
+    private TextView validationError;
+    private TextView calculateCta;
+    private ShimmerView calculateShimmer;
     private LinearLayout resultsLayout;
+    private LinearLayout resultsSummaryHeader;
+    private FrameLayout exportPdfBar;
+    private LinearLayout exportPdfButtonView;
+    private TextView exportPdfText;
+    private NavIconView exportPdfIcon;
+    private SmallSpinnerView exportPdfSpinner;
     private LinearLayout historyLayout;
-    private Button exportPdfButton;
+    private LinearLayout historyStickyHeader;
+    private TextView historyStickyText;
+    private final List<View> historyHeaderViews = new ArrayList<>();
+    private PopupWindow historyMenuPopup;
+    private FrameLayout bottomSheetOverlay;
     private final List<CalculationRecord> history = new ArrayList<>();
     private final List<View> pendingRevealViews = new ArrayList<>();
     private final List<String> lastPdfLines = new ArrayList<>();
@@ -190,11 +238,15 @@ public class MainActivity extends Activity {
         mainScrollView = new ScrollView(this);
         mainScrollView.setFillViewport(false);
         mainScrollView.setBackgroundColor(COLOR_BG);
-        mainScrollView.setOnScrollChangeListener((view, scrollX, scrollY, oldScrollX, oldScrollY) -> checkScrollRevealViews());
+        mainScrollView.setOnScrollChangeListener((view, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+            checkScrollRevealViews();
+            handleNavScroll(scrollY, oldScrollY);
+            updateHistoryStickyHeader();
+        });
 
         pageLayout = new LinearLayout(this);
         pageLayout.setOrientation(LinearLayout.VERTICAL);
-        pageLayout.setPadding(dp(16), dp(32), dp(16), dp(86));
+        pageLayout.setPadding(dp(16), dp(104), dp(16), dp(86));
         mainScrollView.addView(pageLayout);
 
         rootLayout.addView(mainScrollView, new FrameLayout.LayoutParams(
@@ -202,8 +254,31 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
+        navBar = buildTopNavBar();
+        FrameLayout.LayoutParams navBarParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(56)
+        );
+        navBarParams.gravity = Gravity.TOP;
+        navBarParams.leftMargin = dp(14);
+        navBarParams.rightMargin = dp(14);
+        navBarParams.topMargin = dp(32);
+        rootLayout.addView(navBar, navBarParams);
+
+        historyStickyHeader = stickyHistoryHeaderView();
+        historyStickyHeader.setVisibility(View.GONE);
+        FrameLayout.LayoutParams stickyParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(28)
+        );
+        stickyParams.gravity = Gravity.TOP;
+        stickyParams.topMargin = dp(88);
+        stickyParams.leftMargin = dp(30);
+        stickyParams.rightMargin = dp(30);
+        rootLayout.addView(historyStickyHeader, stickyParams);
+
         navScrim = new View(this);
-        navScrim.setBackgroundColor(0x66000000);
+        navScrim.setBackgroundColor(0x80000000);
         navScrim.setVisibility(View.GONE);
         navScrim.setOnClickListener(view -> closeNavDrawer());
         rootLayout.addView(navScrim, new FrameLayout.LayoutParams(
@@ -213,10 +288,9 @@ public class MainActivity extends Activity {
 
         navDrawer = buildNavDrawer();
         navDrawer.setVisibility(View.GONE);
-        FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(dp(72), FrameLayout.LayoutParams.WRAP_CONTENT);
+        navDrawer.setTranslationX(-dp(260));
+        FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(dp(260), FrameLayout.LayoutParams.MATCH_PARENT);
         navParams.gravity = Gravity.START | Gravity.TOP;
-        navParams.leftMargin = dp(24);
-        navParams.topMargin = dp(96);
         rootLayout.addView(navDrawer, navParams);
 
         setContentView(rootLayout);
@@ -226,12 +300,141 @@ public class MainActivity extends Activity {
     private void showMainMenu() {
         currentScreen = SCREEN_MENU;
         closeNavDrawer();
+        configureTopNav("Inicio", false, true);
+        setResultsChromeVisible(false);
+        setDefaultPagePadding();
         pendingRevealViews.clear();
         pageLayout.removeAllViews();
-        pageLayout.addView(topBar("TermoWences"), matchWrap(0, 0, 0, 12));
         pageLayout.addView(heroSection(), matchWrap(0, 0, 0, 14));
         pageLayout.addView(menuSummary(), matchWrap(0, 0, 0, 0));
         animateIntro();
+    }
+
+    private FrameLayout buildTopNavBar() {
+        FrameLayout bar = new FrameLayout(this);
+        bar.setPadding(dp(14), 0, dp(14), 0);
+        bar.setBackground(rounded(0xFF0A1E1A, 0));
+
+        View menu = topNavActionButton(false);
+        menu.setOnClickListener(view -> {
+            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            toggleNavDrawer();
+        });
+        FrameLayout.LayoutParams menuParams = new FrameLayout.LayoutParams(dp(44), dp(44));
+        menuParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+        bar.addView(menu, menuParams);
+
+        navTitleView = text("", 14, COLOR_TEXT, false);
+        navTitleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        navTitleView.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams titleParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        );
+        titleParams.leftMargin = dp(72);
+        titleParams.rightMargin = dp(72);
+        bar.addView(navTitleView, titleParams);
+
+        View logo = navLogoView();
+        FrameLayout.LayoutParams logoParams = new FrameLayout.LayoutParams(dp(30), dp(30));
+        logoParams.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
+        bar.addView(logo, logoParams);
+        addNavBottomBorder(bar);
+        return bar;
+    }
+
+    private void configureTopNav(String title, boolean resultsMode, boolean scrollHide) {
+        enableNavScrollHide = scrollHide && !resultsMode;
+        if (historyStickyHeader != null && currentScreen != SCREEN_HISTORY) {
+            historyStickyHeader.setVisibility(View.GONE);
+        }
+        navHidden = false;
+        if (mainScrollView != null) {
+            mainScrollView.scrollTo(0, 0);
+        }
+        lastScrollY = 0;
+        if (navBar != null) {
+            navBar.animate().cancel();
+            navBar.setTranslationY(0f);
+            navBar.removeAllViews();
+            navBar.setPadding(dp(14), 0, dp(14), 0);
+            navBar.setBackground(rounded(0xFF0A1E1A, 0));
+            navBar.setElevation(0);
+
+            View left = resultsMode ? topBackButton() : topNavActionButton(false);
+            if (!resultsMode) {
+                left.setOnClickListener(view -> {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                    toggleNavDrawer();
+                });
+            }
+            FrameLayout.LayoutParams leftParams = new FrameLayout.LayoutParams(resultsMode ? dp(92) : dp(44), dp(44));
+            leftParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+            navBar.addView(left, leftParams);
+
+            navTitleView = text(title, 14, COLOR_TEXT, false);
+            navTitleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            navTitleView.setGravity(Gravity.CENTER);
+            navTitleView.setAlpha(0f);
+            FrameLayout.LayoutParams titleParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            );
+            titleParams.leftMargin = dp(96);
+            titleParams.rightMargin = dp(96);
+            navBar.addView(navTitleView, titleParams);
+            navTitleView.animate().alpha(1f).setDuration(150).start();
+
+            View logo = navLogoView();
+            FrameLayout.LayoutParams logoParams = new FrameLayout.LayoutParams(dp(30), dp(30));
+            logoParams.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
+            navBar.addView(logo, logoParams);
+            addNavBottomBorder(navBar);
+        }
+    }
+
+    private void addNavBottomBorder(FrameLayout bar) {
+        View border = new View(this);
+        border.setBackgroundColor(0xFF1D3530);
+        FrameLayout.LayoutParams borderParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(1)
+        );
+        borderParams.gravity = Gravity.BOTTOM;
+        bar.addView(border, borderParams);
+    }
+
+    private View topNavActionButton(boolean selected) {
+        NavIconView icon = new NavIconView(this, ICON_MENU, COLOR_TEXT);
+        icon.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(40)));
+        icon.setContentDescription("Abrir menú");
+        return icon;
+    }
+
+    private View topBackButton() {
+        LinearLayout back = new LinearLayout(this);
+        back.setOrientation(LinearLayout.HORIZONTAL);
+        back.setGravity(Gravity.CENTER_VERTICAL);
+        back.setPadding(0, 0, dp(8), 0);
+        back.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(40)));
+        BackArrowView arrow = new BackArrowView(this, 0xFF7FA89C, false);
+        back.addView(arrow, new LinearLayout.LayoutParams(dp(24), dp(44)));
+        TextView label = text("Calcular", 12, 0xFF7FA89C, false);
+        label.setGravity(Gravity.CENTER_VERTICAL);
+        back.addView(label, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)));
+        back.setOnClickListener(view -> {
+            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            showCalculatorScreen();
+        });
+        return back;
+    }
+
+    private View navLogoView() {
+        TextView logo = text("QJH", 9, 0xFF04342C, false);
+        logo.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        logo.setGravity(Gravity.CENTER);
+        logo.setBackground(rounded(0xFF1D9E75, dp(8)));
+        return logo;
     }
 
     private View topBar(String title) {
@@ -264,24 +467,49 @@ public class MainActivity extends Activity {
     private LinearLayout buildNavDrawer() {
         LinearLayout drawer = new LinearLayout(this);
         drawer.setOrientation(LinearLayout.VERTICAL);
-        drawer.setGravity(Gravity.CENTER_VERTICAL);
-        drawer.setPadding(dp(8), dp(8), dp(8), dp(8));
-        drawer.setBackground(roundedStroke(0xF01A2024, COLOR_BORDER, dp(8)));
-        drawer.setElevation(dp(8));
+        drawer.setPadding(0, dp(36), 0, dp(18));
+        drawer.setBackground(drawerBackground());
         refreshNavDrawer(drawer);
         return drawer;
     }
 
     private void refreshNavDrawer(LinearLayout drawer) {
         drawer.removeAllViews();
-        drawer.addView(navItem(ICON_HOME, "Inicio", SCREEN_MENU), navItemWrap(0));
-        drawer.addView(navItem(ICON_CALCULATE, "Calcular", SCREEN_CALCULATOR), navItemWrap(8));
-        drawer.addView(navItem(ICON_HISTORY, "Historial", SCREEN_HISTORY), navItemWrap(8));
-        drawer.addView(navItem(ICON_INFO, "Info", SCREEN_ABOUT), navItemWrap(8));
+        drawer.addView(drawerHeader(), matchWrap(0, 0, 0, 14));
+        drawer.addView(thinDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
+        drawer.addView(navItem(ICON_HOME, "Inicio", SCREEN_MENU), navItemWrap(14));
+        drawer.addView(navItem(ICON_CURVE, "Calcular", SCREEN_CALCULATOR), navItemWrap(4));
+        drawer.addView(navItem(ICON_HISTORY, "Historial", SCREEN_HISTORY), navItemWrap(4));
+        drawer.addView(navItem(ICON_INFO, "Acerca de", SCREEN_ABOUT), navItemWrap(4));
     }
 
     private View navItem(int iconType, String label, int targetScreen) {
-        View item = navIconButton(iconType, label, currentScreen == targetScreen);
+        boolean selected = currentScreen == targetScreen;
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setPadding(0, 0, dp(14), 0);
+        item.setBackground(rippleBackground(selected ? 0xFF1D4A3C : 0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(40)));
+
+        View activeBar = new View(this);
+        activeBar.setBackgroundColor(selected ? COLOR_PRIMARY : 0x00000000);
+        item.addView(activeBar, new LinearLayout.LayoutParams(dp(3), LinearLayout.LayoutParams.MATCH_PARENT));
+
+        NavIconView icon = new NavIconView(this, iconType, selected ? COLOR_PRIMARY : 0xFF7FA89C);
+        item.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(48)));
+
+        TextView labelView = text(label, 13, selected ? COLOR_PRIMARY : 0xFF7FA89C, false);
+        labelView.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        item.addView(labelView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        if (targetScreen == SCREEN_HISTORY && !history.isEmpty()) {
+            TextView badge = text(String.valueOf(history.size()), 9, 0xFF04342C, true);
+            badge.setGravity(Gravity.CENTER);
+            badge.setBackground(rounded(COLOR_PRIMARY, dp(8)));
+            item.addView(badge, new LinearLayout.LayoutParams(dp(16), dp(16)));
+        }
+
+        item.setContentDescription(label);
         item.setOnClickListener(clicked -> {
             clicked.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             closeNavDrawer();
@@ -295,15 +523,33 @@ public class MainActivity extends Activity {
                 showAboutScreen();
             }
         });
-        item.setOnTouchListener((target, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                target.animate().scaleX(0.97f).scaleY(0.97f).setDuration(90).start();
-            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-                target.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
-            }
-            return false;
-        });
         return item;
+    }
+
+    private View drawerHeader() {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(16), 0, dp(16), 0);
+
+        View logo = navLogoView();
+        header.addView(logo, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        LinearLayout textBlock = new LinearLayout(this);
+        textBlock.setOrientation(LinearLayout.VERTICAL);
+        textBlock.setPadding(dp(12), 0, 0, 0);
+        TextView name = text("TermoWences", 15, COLOR_TEXT, false);
+        name.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        textBlock.addView(name, compactWrap());
+        textBlock.addView(text("v1.0", 11, 0xFF7FA89C, false), compactWrap());
+        header.addView(textBlock, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        return header;
+    }
+
+    private View thinDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(0x801D4A3C);
+        return divider;
     }
 
     private View navIconButton(int iconType, String label, boolean selected) {
@@ -340,7 +586,12 @@ public class MainActivity extends Activity {
             refreshNavDrawer(navDrawer);
             navScrim.setVisibility(View.VISIBLE);
             navDrawer.setVisibility(View.VISIBLE);
-            animateView(navDrawer, 0);
+            navDrawer.setTranslationX(-dp(260));
+            navDrawer.animate()
+                .translationX(0f)
+                .setDuration(220)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
         } else {
             closeNavDrawer();
         }
@@ -352,8 +603,41 @@ public class MainActivity extends Activity {
             navScrim.setVisibility(View.GONE);
         }
         if (navDrawer != null) {
-            navDrawer.setVisibility(View.GONE);
+            if (navDrawer.getVisibility() == View.VISIBLE) {
+                navDrawer.animate()
+                    .translationX(-dp(260))
+                    .setDuration(220)
+                    .setInterpolator(new AccelerateDecelerateInterpolator())
+                    .withEndAction(() -> navDrawer.setVisibility(View.GONE))
+                    .start();
+            } else {
+                navDrawer.setTranslationX(-dp(260));
+            }
         }
+    }
+
+    private void handleNavScroll(int scrollY, int oldScrollY) {
+        if (!enableNavScrollHide || navBar == null || navOpen) {
+            lastScrollY = scrollY;
+            return;
+        }
+        int delta = scrollY - oldScrollY;
+        if (delta > dp(12) && !navHidden) {
+            navHidden = true;
+            navBar.animate()
+                .translationY(-dp(56))
+                .setDuration(200)
+                .setInterpolator(new AccelerateDecelerateInterpolator())
+                .start();
+        } else if (delta < 0 && navHidden) {
+            navHidden = false;
+            navBar.animate()
+                .translationY(0f)
+                .setDuration(200)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
+        }
+        lastScrollY = scrollY;
     }
 
     private View menuSummary() {
@@ -451,33 +735,29 @@ public class MainActivity extends Activity {
     private void showCalculatorScreen() {
         currentScreen = SCREEN_CALCULATOR;
         closeNavDrawer();
+        configureTopNav("Calcular", false, false);
+        setResultsChromeVisible(false);
+        setDefaultPagePadding();
         pageLayout.removeAllViews();
-        pageLayout.addView(topBar("Calcular"), matchWrap(0, 0, 0, 12));
         pageLayout.addView(screenHeader("Calcular", "Consulta propiedades y revisa gráficos individuales por resultado."), matchWrap(0, 0, 0, 14));
         pageLayout.addView(calculatorSection(), matchWrap(0, 0, 0, 14));
 
-        tableSpinner.setOnItemSelectedListener(null);
-        setSpinnerToTable(lastTableKey);
+        setSelectedTable(lastTableKey, false);
         updateSelectedTable(false);
         if (!Double.isNaN(lastTemperature)) {
             temperatureInput.setText(String.format(Locale.US, "%.2f", lastTemperature));
         }
-        final boolean[] skipInitialSelection = {true};
-        tableSpinner.post(() -> tableSpinner.setOnItemSelectedListener(new SimpleItemSelectedListener(() -> {
-            if (skipInitialSelection[0]) {
-                skipInitialSelection[0] = false;
-                return;
-            }
-            updateSelectedTable(true);
-        })));
+        validateTemperatureInput(false);
         animateIntro();
     }
 
     private void showHistoryScreen() {
         currentScreen = SCREEN_HISTORY;
         closeNavDrawer();
+        configureTopNav("Historial", false, true);
+        setResultsChromeVisible(false);
+        setDefaultPagePadding();
         pageLayout.removeAllViews();
-        pageLayout.addView(topBar("Historial"), matchWrap(0, 0, 0, 12));
         pageLayout.addView(screenHeader("Historial", "Reabre, exporta o elimina cálculos guardados."), matchWrap(0, 0, 0, 14));
         historyLayout = new LinearLayout(this);
         historyLayout.setOrientation(LinearLayout.VERTICAL);
@@ -489,25 +769,243 @@ public class MainActivity extends Activity {
     private void showAboutScreen() {
         currentScreen = SCREEN_ABOUT;
         closeNavDrawer();
+        configureTopNav("Acerca de", false, false);
+        setResultsChromeVisible(false);
+        setDefaultPagePadding();
         pageLayout.removeAllViews();
-        pageLayout.addView(topBar("Acerca de"), matchWrap(0, 0, 0, 12));
-        pageLayout.addView(screenHeader("Acerca de", "Información académica y alcance del software."), matchWrap(0, 0, 0, 14));
+        View hero = aboutHeroCard();
+        pageLayout.addView(hero, matchWrap(0, 0, 0, 14));
         pageLayout.addView(purposeSection(), matchWrap(0, 0, 0, 14));
-        pageLayout.addView(authorsSection(), matchWrap(0, 0, 0, 0));
+        pageLayout.addView(authorsSection(), matchWrap(0, 0, 0, 14));
+        pageLayout.addView(academicFooter(), matchWrap(0, 0, 0, 0));
+        animateScaleIn(hero, 0);
         animateIntro();
     }
 
     private void showResultsScreen() {
+        currentScreen = SCREEN_RESULTS;
         closeNavDrawer();
+        configureTopNav("Resultados", true, false);
+        setResultsPagePadding();
         pageLayout.removeAllViews();
-        pageLayout.addView(resultsTopBar(), matchWrap(0, 0, 0, 12));
-        pageLayout.addView(screenHeader("Resultados", "Valores interpolados y gráficos por propiedad."), matchWrap(0, 0, 0, 14));
-
         resultsLayout = new LinearLayout(this);
         resultsLayout.setOrientation(LinearLayout.VERTICAL);
-        pageLayout.addView(card(resultsLayout), matchWrap(0, 0, 0, 0));
+        pageLayout.addView(resultsLayout, matchWrap(0, 0, 0, 0));
         renderCurrentResults();
+        setResultsChromeVisible(true);
         animateIntro();
+    }
+
+    private void setDefaultPagePadding() {
+        if (pageLayout != null) {
+            pageLayout.setPadding(dp(16), dp(104), dp(16), dp(86));
+        }
+    }
+
+    private void setResultsPagePadding() {
+        if (pageLayout != null) {
+            pageLayout.setPadding(dp(16), dp(172), dp(16), dp(132));
+        }
+    }
+
+    private void setResultsChromeVisible(boolean visible) {
+        if (!visible) {
+            if (resultsSummaryHeader != null) {
+                rootLayout.removeView(resultsSummaryHeader);
+                resultsSummaryHeader = null;
+            }
+            if (exportPdfBar != null) {
+                rootLayout.removeView(exportPdfBar);
+                exportPdfBar = null;
+                exportPdfButtonView = null;
+                exportPdfText = null;
+                exportPdfIcon = null;
+                exportPdfSpinner = null;
+            }
+            return;
+        }
+        showResultsSummaryHeader();
+        showExportPdfBar();
+    }
+
+    private void showResultsSummaryHeader() {
+        if (resultsSummaryHeader != null) {
+            rootLayout.removeView(resultsSummaryHeader);
+        }
+        resultsSummaryHeader = resultsSummaryHeaderView();
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(74)
+        );
+        params.gravity = Gravity.TOP;
+        params.topMargin = dp(96);
+        params.leftMargin = dp(16);
+        params.rightMargin = dp(16);
+        rootLayout.addView(resultsSummaryHeader, params);
+        animateRevealUp(resultsSummaryHeader, 0);
+    }
+
+    private LinearLayout resultsSummaryHeaderView() {
+        LinearLayout wrapper = new LinearLayout(this);
+        wrapper.setOrientation(LinearLayout.HORIZONTAL);
+        wrapper.setGravity(Gravity.CENTER_VERTICAL);
+        wrapper.setPadding(dp(14), dp(10), dp(14), dp(10));
+        wrapper.setBackground(roundedStroke(0xFF0D2B24, 0xFF1D4A3C, dp(12)));
+        wrapper.setElevation(dp(3));
+
+        LinearLayout left = new LinearLayout(this);
+        left.setOrientation(LinearLayout.VERTICAL);
+        TextView label = text("FLUIDO ANALIZADO", 9, 0xFF7FA89C, false);
+        label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        left.addView(label, compactWrap());
+        TextView value = text(summaryFluidText(), 15, COLOR_PRIMARY, false);
+        value.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        left.addView(value, matchWrap(0, dp(2), 0, 0));
+        LinearLayout time = new LinearLayout(this);
+        time.setOrientation(LinearLayout.HORIZONTAL);
+        time.setGravity(Gravity.CENTER_VERTICAL);
+        time.addView(new NavIconView(this, ICON_HISTORY, 0xFF3A5A52), new LinearLayout.LayoutParams(dp(13), dp(13)));
+        TextView timeText = text(" " + resultTimestamp(), 10, 0xFF3A5A52, false);
+        time.addView(timeText, compactWrap());
+        left.addView(time, matchWrap(0, dp(2), 0, 0));
+        wrapper.addView(left, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        LinearLayout count = new LinearLayout(this);
+        count.setOrientation(LinearLayout.VERTICAL);
+        count.setGravity(Gravity.CENTER);
+        count.setPadding(dp(10), dp(6), dp(10), dp(6));
+        count.setBackground(rounded(0xFF1D4A3C, dp(8)));
+        count.addView(text("propiedades", 9, 0xFF7FA89C, false), compactWrap());
+        TextView number = text(String.valueOf(lastPdfEntries.size()), 18, COLOR_PRIMARY, false);
+        number.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        number.setGravity(Gravity.CENTER);
+        count.addView(number, compactWrap());
+        wrapper.addView(count, new LinearLayout.LayoutParams(dp(86), LinearLayout.LayoutParams.WRAP_CONTENT));
+        return wrapper;
+    }
+
+    private String summaryFluidText() {
+        TableSpec spec = specForKey(lastTableKey);
+        String name = spec == null ? "Calculo" : spec.title;
+        if (Double.isNaN(lastTemperature)) {
+            return name;
+        }
+        return String.format(Locale.US, "%s - %.2f C", name, lastTemperature);
+    }
+
+    private String resultTimestamp() {
+        return new SimpleDateFormat("HH:mm - d MMMM", new Locale("es", "ES")).format(new Date());
+    }
+
+    private void showExportPdfBar() {
+        if (exportPdfBar != null) {
+            rootLayout.removeView(exportPdfBar);
+            exportPdfButtonView = null;
+            exportPdfText = null;
+            exportPdfIcon = null;
+            exportPdfSpinner = null;
+        }
+        exportPdfBar = new BottomExportBar(this);
+        exportPdfBar.setPadding(dp(12), dp(16), dp(12), dp(18));
+
+        LinearLayout button = new LinearLayout(this);
+        exportPdfButtonView = button;
+        button.setOrientation(LinearLayout.HORIZONTAL);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(16), 0, dp(16), 0);
+        button.setBackground(rippleBackground(COLOR_ACCENT, 0x33000000, dp(12)));
+        button.setOnClickListener(view -> handleExportPdfPress());
+        button.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                view.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80).start();
+            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                view.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
+            }
+            return false;
+        });
+
+        exportPdfIcon = new NavIconView(this, ICON_REPORT, 0xFF412402);
+        button.addView(exportPdfIcon, new LinearLayout.LayoutParams(dp(24), dp(24)));
+        exportPdfSpinner = new SmallSpinnerView(this, 0xFF412402);
+        exportPdfSpinner.setVisibility(View.GONE);
+        button.addView(exportPdfSpinner, new LinearLayout.LayoutParams(dp(22), dp(22)));
+        exportPdfText = text("Exportar PDF", 14, 0xFF412402, false);
+        exportPdfText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        textParams.leftMargin = dp(8);
+        button.addView(exportPdfText, textParams);
+
+        FrameLayout.LayoutParams buttonParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(52)
+        );
+        buttonParams.gravity = Gravity.BOTTOM;
+        exportPdfBar.addView(button, buttonParams);
+
+        FrameLayout.LayoutParams barParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(92)
+        );
+        barParams.gravity = Gravity.BOTTOM;
+        rootLayout.addView(exportPdfBar, barParams);
+    }
+
+    private void handleExportPdfPress() {
+        if (lastPdfLines.isEmpty()) {
+            showMessage("Primero realiza un calculo para exportar.");
+            return;
+        }
+        setExportPdfState("loading");
+        exportPdf();
+    }
+
+    private void setExportPdfState(String state) {
+        if (exportPdfText == null || exportPdfIcon == null || exportPdfSpinner == null || exportPdfBar == null) {
+            return;
+        }
+        if ("loading".equals(state)) {
+            exportPdfText.setText("Generando PDF...");
+            exportPdfIcon.setVisibility(View.GONE);
+            exportPdfSpinner.setVisibility(View.VISIBLE);
+            exportPdfSpinner.start();
+            return;
+        }
+        exportPdfSpinner.stop();
+        exportPdfSpinner.setVisibility(View.GONE);
+        exportPdfIcon.setVisibility(View.VISIBLE);
+        exportPdfIcon.setIconType(ICON_REPORT);
+        exportPdfIcon.setIconColor(0xFF412402);
+        exportPdfIcon.invalidate();
+        if (exportPdfButtonView != null) {
+            exportPdfButtonView.setBackground(rippleBackground(COLOR_ACCENT, 0x33000000, dp(12)));
+        }
+        exportPdfText.setText("Exportar PDF");
+    }
+
+    private void flashExportPdfSuccess() {
+        if (exportPdfText == null || exportPdfIcon == null) {
+            return;
+        }
+        setExportPdfState("normal");
+        exportPdfText.setText("PDF listo");
+        exportPdfIcon.setIconType(ICON_CHECK);
+        if (exportPdfButtonView != null) {
+            exportPdfButtonView.setBackground(rippleBackground(COLOR_PRIMARY, 0x33000000, dp(12)));
+        }
+        exportPdfIcon.invalidate();
+        exportPdfText.postDelayed(() -> {
+            if (exportPdfText != null && exportPdfIcon != null) {
+                exportPdfText.setText("Exportar PDF");
+                exportPdfIcon.setIconType(ICON_REPORT);
+                if (exportPdfButtonView != null) {
+                    exportPdfButtonView.setBackground(rippleBackground(COLOR_ACCENT, 0x33000000, dp(12)));
+                }
+                exportPdfIcon.invalidate();
+            }
+        }, 1400);
     }
 
     private View resultsTopBar() {
@@ -543,13 +1041,14 @@ public class MainActivity extends Activity {
         return card(content);
     }
 
-    private void setSpinnerToTable(String tableKey) {
-        if (tableSpinner == null || tableKey == null || tableKey.isEmpty()) {
+    private void setSelectedTable(String tableKey, boolean animate) {
+        if (tableKey == null || tableKey.isEmpty()) {
             return;
         }
         for (int i = 0; i < TABLES.length; i++) {
             if (TABLES[i].key.equals(tableKey)) {
-                tableSpinner.setSelection(i);
+                selectedTableIndex = i;
+                updateSegmentedControl(animate);
                 return;
             }
         }
@@ -595,84 +1094,464 @@ public class MainActivity extends Activity {
         return hero;
     }
 
+    private View aboutHeroCard() {
+        HexHeroCard hero = new HexHeroCard(this);
+        hero.setPadding(dp(16), dp(16), dp(16), dp(16));
+        hero.setBackground(roundedStroke(0xFF0D2B24, 0xFF1D4A3C, dp(14)));
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setGravity(Gravity.CENTER);
+
+        TextView logo = text("QJH", 13, 0xFF04342C, false);
+        logo.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        logo.setGravity(Gravity.CENTER);
+        logo.setBackground(rounded(0xFF1D9E75, dp(10)));
+        content.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        TextView name = text("TermoWences", 16, COLOR_TEXT, false);
+        name.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        name.setGravity(Gravity.CENTER);
+        content.addView(name, matchWrap(0, dp(10), 0, 0));
+
+        TextView version = text("v1.0 · Ingeniería Térmica", 9, COLOR_PRIMARY, false);
+        version.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        version.setGravity(Gravity.CENTER);
+        version.setPadding(dp(10), dp(2), dp(10), dp(2));
+        version.setBackground(roundedStroke(0xFF1D4A3C, 0xFF1D9E75, dp(20)));
+        content.addView(version, matchWrap(dp(72), dp(6), dp(72), 0));
+
+        hero.addView(content, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        return hero;
+    }
+
     private View purposeSection() {
         LinearLayout content = section("Para qué sirve");
-        content.addView(body(
-            "TermoWences ayuda a obtener propiedades térmicas a partir de una temperatura. " +
-            "Elige el fluido, ingresa el valor y revisa los resultados listos para usar en tus cálculos."
-        ), compactWrap());
-        content.addView(feature("Uso principal", "Consulta rápida para ejercicios de termodinámica, fluidos y transferencia de calor."));
-        content.addView(feature("Entrada simple", "Solo necesitas seleccionar el material e ingresar la temperatura."));
-        content.addView(feature("Salida ordenada", "Los resultados se muestran con nombre, valor y unidad."));
+        View first = aboutFeatureCard(ICON_BOLT, "Consulta rápida", "Termodinámica, fluidos y transferencia de calor");
+        View second = aboutFeatureCard(ICON_RULER, "Entrada simple", "Solo el fluido y la temperatura");
+        View third = aboutFeatureCard(ICON_LIST, "Salida ordenada", "Valor, unidad y explicación por propiedad");
+        content.addView(first);
+        content.addView(second);
+        content.addView(third);
+        content.post(() -> {
+            animateRevealUp(first, 0);
+            animateRevealUp(second, 80);
+            animateRevealUp(third, 160);
+        });
         return card(content);
+    }
+
+    private View aboutFeatureCard(int iconType, String title, String detail) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(10), dp(12), dp(10));
+        row.setBackground(roundedStroke(COLOR_SURFACE, 0xFF253D37, dp(10)));
+
+        LinearLayout iconBox = new LinearLayout(this);
+        iconBox.setGravity(Gravity.CENTER);
+        iconBox.setBackground(rounded(0xFF1D4A3C, dp(8)));
+        iconBox.addView(new NavIconView(this, iconType, COLOR_PRIMARY), new LinearLayout.LayoutParams(dp(24), dp(24)));
+        row.addView(iconBox, new LinearLayout.LayoutParams(dp(34), dp(34)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(10), 0, 0, 0);
+        TextView titleView = text(title, 12, COLOR_TEXT, false);
+        titleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        copy.addView(titleView, compactWrap());
+        TextView detailView = text(detail, 10, 0xFF7FA89C, false);
+        detailView.setMaxLines(2);
+        copy.addView(detailView, matchWrap(0, dp(2), 0, 0));
+        row.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        return wrapWithMargin(row, 0, dp(8), 0, 0);
     }
 
     private View authorsSection() {
         LinearLayout content = section("Autores");
-        content.addView(body("Desarrollado para apoyar el análisis de propiedades térmicas en ejercicios de ingeniería."), compactWrap());
-        content.addView(author("Wenceslao T. Medina Espinoza"));
-        content.addView(author("Miguel A. Molina Mansilla"));
-        content.addView(author("Edward Torres Cruz"));
-        content.addView(author("Alica Leon Tacca"));
+        content.addView(authorRow("WM", "Wenceslao T. Medina Espinoza", "Autor", "Coordinación del análisis térmico y validación de propiedades.", 0xFF1D4A3C, COLOR_PRIMARY));
+        content.addView(authorRow("MM", "Miguel A. Molina Mansilla", "Autor", "Diseño de flujo de cálculo y revisión de entradas.", 0xFF0C1E3C, 0xFF85B7EB));
+        content.addView(authorRow("ET", "Edward Torres Cruz", "Autor", "Organización de resultados, reportes y gráficos.", 0xFF2A1E06, COLOR_ACCENT));
+        content.addView(authorRow("AL", "Alica Leon Tacca", "Autora", "Revisión académica, presentación y documentación.", 0xFF2A1510, 0xFFF0997B));
         return card(content);
+    }
+
+    private View authorRow(String initials, String name, String role, String contribution, int avatarBg, int avatarText) {
+        LinearLayout wrapper = new LinearLayout(this);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+        wrapper.setPadding(dp(12), dp(8), dp(12), dp(8));
+        wrapper.setBackground(roundedStroke(COLOR_SURFACE, 0xFF253D37, dp(10)));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView avatar = text(initials, 10, avatarText, false);
+        avatar.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setBackground(rounded(avatarBg, dp(15)));
+        row.addView(avatar, new LinearLayout.LayoutParams(dp(30), dp(30)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(10), 0, 0, 0);
+        TextView nameView = text(name, 12, COLOR_TEXT, false);
+        nameView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        copy.addView(nameView, compactWrap());
+        copy.addView(text(role, 10, 0xFF7FA89C, false), compactWrap());
+        row.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        wrapper.addView(row, compactWrap());
+
+        TextView detail = text(contribution, 10, 0xFF3A5A52, false);
+        detail.setVisibility(View.GONE);
+        detail.setAlpha(0f);
+        wrapper.addView(detail, matchWrap(dp(40), dp(6), 0, 0));
+        final boolean[] expanded = {false};
+        wrapper.setOnClickListener(view -> {
+            expanded[0] = !expanded[0];
+            if (expanded[0]) {
+                detail.setVisibility(View.VISIBLE);
+                detail.setTranslationY(-dp(6));
+                detail.animate().alpha(1f).translationY(0f).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
+            } else {
+                detail.animate().alpha(0f).translationY(-dp(6)).setDuration(160).withEndAction(() -> detail.setVisibility(View.GONE)).start();
+            }
+        });
+        return wrapWithMargin(wrapper, 0, dp(8), 0, 0);
+    }
+
+    private View academicFooter() {
+        LinearLayout footer = new LinearLayout(this);
+        footer.setOrientation(LinearLayout.VERTICAL);
+        footer.setPadding(0, dp(12), 0, dp(12));
+        footer.addView(gradientDivider(), matchWrap(0, 0, 0, dp(12)));
+        TextView lineOne = text("Desarrollado como proyecto académico", 10, 0xFF3A5A52, false);
+        lineOne.setGravity(Gravity.CENTER);
+        footer.addView(lineOne, compactWrap());
+        TextView lineTwo = text("Universidad · 2025", 10, 0xFF3A5A52, false);
+        lineTwo.setGravity(Gravity.CENTER);
+        footer.addView(lineTwo, compactWrap());
+        return footer;
     }
 
     private View calculatorSection() {
         LinearLayout content = section("Calcular");
         content.addView(body("Selecciona el fluido, confirma el rango permitido e ingresa la temperatura."), matchWrap(0, dp(4), 0, 12));
 
-        tableSpinner = new Spinner(this);
-        String[] titles = new String[TABLES.length];
-        for (int i = 0; i < TABLES.length; i++) {
-            titles[i] = TABLES[i].title;
-        }
-        ArrayAdapter<String> adapter = spinnerAdapter(titles);
-        tableSpinner.setAdapter(adapter);
-        tableSpinner.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
-        content.addView(tableSpinner, matchWrap(0, dp(10), 0, 8));
-
-        tableDescription = body("");
-        tableDescription.setPadding(dp(12), dp(10), dp(12), dp(10));
-        tableDescription.setBackground(roundedStroke(0xFF1D262A, COLOR_BORDER, dp(8)));
-        content.addView(tableDescription, matchWrap(0, 0, 0, 8));
-
-        tableRange = text("", 14, COLOR_PRIMARY, true);
-        tableRange.setGravity(Gravity.CENTER);
-        tableRange.setPadding(dp(10), dp(8), dp(10), dp(8));
-        tableRange.setBackground(roundedStroke(0xFF242416, COLOR_ACCENT, dp(8)));
-        content.addView(tableRange, matchWrap(0, 0, 0, 12));
-
-        inputLabel = text("", 14, COLOR_MUTED, true);
-        content.addView(inputLabel, compactWrap());
+        LinearLayout.LayoutParams segmentParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44));
+        segmentParams.setMargins(0, dp(4), 0, dp(10));
+        content.addView(segmentedControl(), segmentParams);
+        content.addView(fluidInfoCard(), matchWrap(0, 0, 0, 10));
+        content.addView(rangeBadgeView(), matchWrap(0, 0, 0, 8));
+        content.addView(rangeTooltipView(), matchWrap(0, 0, 0, 10));
 
         temperatureInput = new EditText(this);
-        temperatureInput.setHint("Ingrese temperatura");
+        temperatureInput.setBackgroundColor(0x00000000);
+        temperatureInput.setHint("");
         temperatureInput.setSingleLine(true);
-        temperatureInput.setTextSize(18);
+        temperatureInput.setTextSize(17);
         temperatureInput.setTextColor(COLOR_TEXT);
-        temperatureInput.setHintTextColor(COLOR_MUTED);
-        temperatureInput.setPadding(dp(12), 0, dp(12), 0);
-        temperatureInput.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
+        temperatureInput.setPadding(dp(12), dp(14), dp(42), 0);
         temperatureInput.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
         temperatureInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         temperatureInput.setOnEditorActionListener((view, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                calculate();
+                handleCalculatePress();
                 return true;
             }
             return false;
         });
-        content.addView(temperatureInput, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52)));
+        temperatureInput.setOnFocusChangeListener((view, hasFocus) -> updateFloatingLabel(true));
+        temperatureInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence value, int start, int count, int after) {
+            }
 
-        Button calculate = button("Calcular", COLOR_PRIMARY, 0xFF07100F);
-        calculate.setTextSize(16);
-        calculate.setOnClickListener(view -> calculate());
-        content.addView(calculate, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(54)));
+            @Override
+            public void onTextChanged(CharSequence value, int start, int before, int count) {
+                updateFloatingLabel(true);
+                validateTemperatureInput(true);
+            }
 
-        Button clear = button("Limpiar entrada", COLOR_SURFACE_2, COLOR_TEXT);
-        clear.setOnClickListener(view -> clearResults());
-        content.addView(clear, matchWrap(0, dp(10), 0, 0));
+            @Override
+            public void afterTextChanged(Editable value) {
+            }
+        });
+        content.addView(temperatureFieldView(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52)));
+        content.addView(validationErrorView(), matchWrap(0, dp(4), 0, 10));
+
+        content.addView(calculateButtonView(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52)));
+        content.addView(clearInputButton(), matchWrap(0, dp(8), 0, 0));
         return card(content);
+    }
+
+    private View segmentedControl() {
+        segmentFrame = new FrameLayout(this);
+        segmentFrame.setPadding(dp(3), dp(3), dp(3), dp(3));
+        segmentFrame.setMinimumHeight(dp(44));
+        segmentFrame.setBackground(roundedStroke(0xFF1E2F2B, 0xFF253D37, dp(24)));
+
+        segmentIndicator = new View(this);
+        segmentIndicator.setBackground(rounded(COLOR_PRIMARY, dp(20)));
+        segmentFrame.addView(segmentIndicator, new FrameLayout.LayoutParams(0, dp(38)));
+
+        segmentContainer = new LinearLayout(this);
+        segmentContainer.setOrientation(LinearLayout.HORIZONTAL);
+        segmentButtons.clear();
+
+        String[] labels = {"Agua", "Aire seco", "Vapor"};
+        for (int i = 0; i < labels.length; i++) {
+            final int index = i;
+            TextView option = text(labels[i], 11, 0xFF7FA89C, false);
+            option.setGravity(Gravity.CENTER);
+            option.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            option.setBackground(rounded(0x00000000, dp(20)));
+            option.setOnClickListener(view -> selectSegment(index));
+            segmentButtons.add(option);
+            segmentContainer.addView(option, new LinearLayout.LayoutParams(0, dp(38), 1));
+        }
+        segmentFrame.addView(segmentContainer, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+        segmentFrame.post(() -> updateSegmentedControl(false));
+        updateSegmentedControl(false);
+        return segmentFrame;
+    }
+
+    private void selectSegment(int index) {
+        if (index == selectedTableIndex) {
+            return;
+        }
+        selectedTableIndex = index;
+        updateSegmentedControl(true);
+        crossFadeSelectedTableChange();
+    }
+
+    private void updateSegmentedControl(boolean animate) {
+        for (int i = 0; i < segmentButtons.size(); i++) {
+            TextView option = segmentButtons.get(i);
+            boolean selected = i == selectedTableIndex;
+            option.setTextColor(selected ? 0xFF04342C : 0xFF7FA89C);
+            option.setTypeface(Typeface.create("sans-serif", selected ? Typeface.BOLD : Typeface.NORMAL));
+            option.setBackground(rounded(0x00000000, dp(20)));
+        }
+        if (segmentFrame != null && segmentIndicator != null && segmentFrame.getWidth() > 0) {
+            int available = segmentFrame.getWidth() - dp(6);
+            int itemWidth = available / TABLES.length;
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) segmentIndicator.getLayoutParams();
+            params.width = itemWidth;
+            params.height = dp(38);
+            params.leftMargin = dp(3);
+            params.topMargin = dp(3);
+            segmentIndicator.setLayoutParams(params);
+            float target = itemWidth * selectedTableIndex;
+            if (animate) {
+                segmentIndicator.animate()
+                    .translationX(target)
+                    .setDuration(320)
+                    .setInterpolator(new DecelerateInterpolator(1.5f))
+                    .start();
+            } else {
+                segmentIndicator.setTranslationX(target);
+            }
+        }
+    }
+
+    private View fluidInfoCard() {
+        fluidInfoCard = new LinearLayout(this);
+        fluidInfoCard.setOrientation(LinearLayout.HORIZONTAL);
+        fluidInfoCard.setGravity(Gravity.CENTER_VERTICAL);
+        fluidInfoCard.setPadding(dp(10), 0, dp(10), 0);
+        fluidInfoCard.setBackground(roundedStroke(0xFF1E2F2B, 0xFF253D37, dp(10)));
+
+        fluidIconFrame = new LinearLayout(this);
+        fluidIconFrame.setGravity(Gravity.CENTER);
+        fluidIconFrame.setBackground(rounded(0xFF1D4A3C, dp(16)));
+        fluidInfoCard.addView(fluidIconFrame, new LinearLayout.LayoutParams(dp(32), dp(32)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(10), 0, 0, 0);
+        fluidTitleView = text("", 12, COLOR_TEXT, false);
+        fluidTitleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        fluidDescriptionView = text("", 10, 0xFF7FA89C, false);
+        fluidDescriptionView.setMaxLines(2);
+        copy.addView(fluidTitleView, compactWrap());
+        copy.addView(fluidDescriptionView, matchWrap(0, dp(2), 0, 0));
+        fluidInfoCard.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        updateFluidInfoContent();
+        return fluidInfoCard;
+    }
+
+    private void crossFadeSelectedTableChange() {
+        if (fluidInfoCard == null) {
+            updateSelectedTable(true);
+            return;
+        }
+        fluidInfoCard.animate()
+            .alpha(0f)
+            .setDuration(150)
+            .withEndAction(() -> {
+                updateSelectedTable(true);
+                fluidInfoCard.animate()
+                    .alpha(1f)
+                    .setDuration(150)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+            })
+            .start();
+    }
+
+    private void updateFluidInfoContent() {
+        if (fluidTitleView == null || fluidDescriptionView == null || fluidIconFrame == null) {
+            return;
+        }
+        TableSpec spec = selectedSpec();
+        fluidTitleView.setText(spec.title);
+        fluidDescriptionView.setText(descriptionFor(spec.key));
+        fluidIconFrame.removeAllViews();
+        int icon = ICON_DATABASE;
+        int color = COLOR_PRIMARY;
+        if ("water".equals(spec.key)) {
+            icon = ICON_DROPLET;
+            color = COLOR_PRIMARY;
+        } else if ("air".equals(spec.key)) {
+            icon = ICON_WIND;
+            color = 0xFF85B7EB;
+        } else if ("steam".equals(spec.key)) {
+            icon = ICON_CLOUD;
+            color = 0xFF9FE1CB;
+        }
+        fluidIconFrame.addView(new NavIconView(this, icon, color), new LinearLayout.LayoutParams(dp(32), dp(32)));
+    }
+
+    private View rangeBadgeView() {
+        rangeBadge = new LinearLayout(this);
+        rangeBadge.setOrientation(LinearLayout.HORIZONTAL);
+        rangeBadge.setGravity(Gravity.CENTER);
+        rangeBadge.setPadding(dp(10), dp(4), dp(10), dp(4));
+        rangeBadge.setBackground(roundedStroke(0xFF2A1E06, COLOR_ACCENT, dp(20)));
+
+        NavIconView icon = new NavIconView(this, ICON_THERMOMETER, COLOR_ACCENT);
+        rangeBadge.addView(icon, new LinearLayout.LayoutParams(dp(18), dp(18)));
+        rangeBadgeText = text("", 10, COLOR_ACCENT, true);
+        rangeBadgeText.setGravity(Gravity.CENTER_VERTICAL);
+        rangeBadge.addView(rangeBadgeText, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(22)));
+
+        rangeBadge.setOnLongClickListener(view -> {
+            showRangeTooltip(true);
+            return true;
+        });
+        rangeBadge.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                showRangeTooltip(false);
+            }
+            return false;
+        });
+        rangeBadge.post(() -> {
+            rangeBadge.setAlpha(0f);
+            rangeBadge.animate().alpha(1f).setDuration(200).start();
+        });
+        return rangeBadge;
+    }
+
+    private View rangeTooltipView() {
+        rangeTooltip = text("", 11, COLOR_MUTED, false);
+        rangeTooltip.setPadding(dp(10), dp(8), dp(10), dp(8));
+        rangeTooltip.setBackground(rounded(0xFF1A2724, dp(8)));
+        rangeTooltip.setVisibility(View.GONE);
+        return rangeTooltip;
+    }
+
+    private void showRangeTooltip(boolean visible) {
+        if (rangeTooltip == null) {
+            return;
+        }
+        if (visible) {
+            rangeTooltip.setText("El rango indica los límites disponibles para interpolar con datos confiables del fluido seleccionado.");
+            rangeTooltip.setAlpha(0f);
+            rangeTooltip.setVisibility(View.VISIBLE);
+            rangeTooltip.animate().alpha(1f).setDuration(150).start();
+        } else {
+            rangeTooltip.setVisibility(View.GONE);
+        }
+    }
+
+    private View temperatureFieldView() {
+        temperatureField = new FrameLayout(this);
+        temperatureField.setBackground(roundedStroke(0xFF1E2F2B, withAlpha(COLOR_PRIMARY, 102), dp(10)));
+        temperatureField.addView(temperatureInput, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        floatingLabel = text("Temperatura del fluido", 13, 0xFF7FA89C, false);
+        floatingLabel.setGravity(Gravity.CENTER_VERTICAL);
+        floatingLabel.setPadding(dp(12), 0, 0, 0);
+        floatingLabel.setOnClickListener(view -> temperatureInput.requestFocus());
+        temperatureField.addView(floatingLabel, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        temperatureSuffix = text("°C", 12, 0xFF7FA89C, false);
+        temperatureSuffix.setGravity(Gravity.CENTER);
+        temperatureSuffix.setOnClickListener(view -> temperatureInput.requestFocus());
+        FrameLayout.LayoutParams suffixParams = new FrameLayout.LayoutParams(dp(38), FrameLayout.LayoutParams.MATCH_PARENT);
+        suffixParams.gravity = Gravity.END;
+        temperatureField.addView(temperatureSuffix, suffixParams);
+        temperatureField.setOnClickListener(view -> temperatureInput.requestFocus());
+        return temperatureField;
+    }
+
+    private View validationErrorView() {
+        validationError = text("", 10, 0xFFD85A30, false);
+        validationError.setVisibility(View.GONE);
+        return validationError;
+    }
+
+    private View calculateButtonView() {
+        FrameLayout button = new FrameLayout(this);
+        button.setBackground(rippleBackground(COLOR_PRIMARY, 0x33000000, dp(12)));
+        calculateCta = text("Calcular", 14, 0xFF04342C, false);
+        calculateCta.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        calculateCta.setGravity(Gravity.CENTER);
+        button.addView(calculateCta, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        calculateShimmer = new ShimmerView(this);
+        calculateShimmer.setVisibility(View.GONE);
+        button.addView(calculateShimmer, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        button.setOnClickListener(view -> handleCalculatePress());
+        button.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                view.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80).start();
+            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                view.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
+            }
+            return false;
+        });
+        return button;
+    }
+
+    private View clearInputButton() {
+        LinearLayout clear = new LinearLayout(this);
+        clear.setOrientation(LinearLayout.HORIZONTAL);
+        clear.setGravity(Gravity.CENTER);
+        clear.setPadding(0, 0, 0, 0);
+        NavIconView icon = new NavIconView(this, ICON_TRASH, 0xFF7FA89C);
+        clear.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(44)));
+        TextView label = text("Limpiar entrada", 11, 0xFF7FA89C, false);
+        label.setGravity(Gravity.CENTER_VERTICAL);
+        clear.addView(label, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)));
+        clear.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                label.setTextColor(COLOR_TEXT);
+            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                label.setTextColor(0xFF7FA89C);
+            }
+            return false;
+        });
+        clear.setOnClickListener(view -> clearInputAnimated());
+        return clear;
     }
 
     private LinearLayout section(String title) {
@@ -696,13 +1575,6 @@ public class MainActivity extends Activity {
         return wrapWithMargin(view, 0, dp(8), 0, 0);
     }
 
-    private View author(String name) {
-        TextView view = text(name, 15, COLOR_TEXT, true);
-        view.setPadding(dp(12), dp(9), dp(12), dp(9));
-        view.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
-        return wrapWithMargin(view, 0, dp(8), 0, 0);
-    }
-
     private void updateSelectedTable() {
         updateSelectedTable(true);
     }
@@ -710,23 +1582,167 @@ public class MainActivity extends Activity {
     private void updateSelectedTable(boolean resetResults) {
         TableSpec spec = selectedSpec();
         PropertyTable table = tables.get(spec.key);
-        inputLabel.setText(spec.inputLabel);
-        tableDescription.setText(descriptionFor(spec.key));
+        updateFluidInfoContent();
         if (table != null) {
-            tableRange.setText(String.format(Locale.US, "Rango disponible: %.2f C a %.2f C", table.minTemperature(), table.maxTemperature()));
+            if (rangeBadgeText != null) {
+                rangeBadgeText.setText(String.format(Locale.US, " %.2f °C — %.2f °C", table.minTemperature(), table.maxTemperature()));
+            }
         }
         if (resetResults) {
             temperatureInput.setText("");
             clearResults();
         }
-        animateView(tableDescription, 0);
-        animateView(tableRange, 80);
+        validateTemperatureInput(false);
+        updateFloatingLabel(true);
+    }
+
+    private boolean validateTemperatureInput(boolean animate) {
+        if (temperatureInput == null || temperatureField == null) {
+            return false;
+        }
+        String raw = temperatureInput.getText().toString().trim().replace(",", ".");
+        boolean hasValue = !raw.isEmpty();
+        boolean valid = false;
+        String error = "";
+        TableSpec spec = selectedSpec();
+        PropertyTable table = tables.get(spec.key);
+        if (hasValue && table != null) {
+            try {
+                double value = Double.parseDouble(raw);
+                valid = value >= table.minTemperature() && value <= table.maxTemperature();
+                if (!valid) {
+                    error = String.format(Locale.US, "Fuera del rango permitido: %.2f–%.2f °C", table.minTemperature(), table.maxTemperature());
+                }
+            } catch (NumberFormatException exc) {
+                error = "Ingrese una temperatura válida";
+            }
+        }
+
+        int border = valid || !hasValue ? withAlpha(COLOR_PRIMARY, 102) : 0xFFD85A30;
+        if (temperatureInput.hasFocus() && (valid || !hasValue)) {
+            border = COLOR_PRIMARY;
+        }
+        temperatureField.setBackground(roundedStroke(0xFF1E2F2B, border, dp(10)));
+
+        if (validationError != null) {
+            if (!error.isEmpty()) {
+                validationError.setText(error);
+                if (validationError.getVisibility() != View.VISIBLE) {
+                    validationError.setVisibility(View.VISIBLE);
+                    if (animate) {
+                        animateRevealUp(validationError, 0);
+                    }
+                }
+            } else {
+                validationError.setVisibility(View.GONE);
+            }
+        }
+        updateCalculateState(valid);
+        return valid;
+    }
+
+    private void updateFloatingLabel(boolean animate) {
+        if (floatingLabel == null || temperatureInput == null) {
+            return;
+        }
+        boolean floated = temperatureInput.hasFocus() || temperatureInput.getText().length() > 0;
+        float targetY = floated ? -dp(14) : 0f;
+        float targetScale = floated ? 0.85f : 1f;
+        floatingLabel.setTextColor(floated ? COLOR_PRIMARY : 0xFF7FA89C);
+        floatingLabel.setTextSize(floated ? 10 : 13);
+        if (animate) {
+            floatingLabel.animate()
+                .translationY(targetY)
+                .scaleX(targetScale)
+                .scaleY(targetScale)
+                .setDuration(150)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
+        } else {
+            floatingLabel.setTranslationY(targetY);
+            floatingLabel.setScaleX(targetScale);
+            floatingLabel.setScaleY(targetScale);
+        }
+    }
+
+    private void updateCalculateState(boolean valid) {
+        if (calculateCta == null) {
+            return;
+        }
+        View parent = (View) calculateCta.getParent();
+        parent.setBackground(rippleBackground(valid ? COLOR_PRIMARY : 0xFF1E2F2B, 0x33000000, dp(12)));
+        calculateCta.setTextColor(valid ? 0xFF04342C : 0xFF4A6B62);
+    }
+
+    private void handleCalculatePress() {
+        boolean valid = validateTemperatureInput(true);
+        if (!valid) {
+            shakeView((View) calculateCta.getParent());
+            return;
+        }
+        startCalculateLoading();
+        if (calculateCta != null) {
+            calculateCta.postDelayed(this::calculate, 350);
+        } else {
+            calculate();
+        }
+    }
+
+    private void startCalculateLoading() {
+        if (calculateCta == null || calculateShimmer == null) {
+            return;
+        }
+        calculateCta.animate().alpha(0f).setDuration(100).start();
+        calculateShimmer.setVisibility(View.VISIBLE);
+        calculateShimmer.start();
+    }
+
+    private void stopCalculateLoading() {
+        if (calculateCta != null) {
+            calculateCta.animate().alpha(1f).setDuration(100).start();
+        }
+        if (calculateShimmer != null) {
+            calculateShimmer.stop();
+            calculateShimmer.setVisibility(View.GONE);
+        }
+    }
+
+    private void shakeView(View view) {
+        if (view == null) {
+            return;
+        }
+        view.animate().cancel();
+        view.animate().translationX(dp(4)).setDuration(50).withEndAction(() ->
+            view.animate().translationX(-dp(4)).setDuration(50).withEndAction(() ->
+                view.animate().translationX(dp(4)).setDuration(50).withEndAction(() ->
+                    view.animate().translationX(0f).setDuration(50).start()
+                ).start()
+            ).start()
+        ).start();
+    }
+
+    private void clearInputAnimated() {
+        if (temperatureInput == null) {
+            return;
+        }
+        temperatureInput.animate()
+            .alpha(0f)
+            .setDuration(100)
+            .withEndAction(() -> {
+                temperatureInput.setText("");
+                temperatureInput.setAlpha(1f);
+                clearResults();
+                updateFloatingLabel(true);
+                validateTemperatureInput(false);
+            })
+            .start();
     }
 
     private void calculate() {
         TableSpec spec = selectedSpec();
         PropertyTable table = tables.get(spec.key);
         if (table == null) {
+            stopCalculateLoading();
             showMessage("No se pudo cargar la tabla");
             return;
         }
@@ -735,11 +1751,13 @@ public class MainActivity extends Activity {
         try {
             temperature = Double.parseDouble(temperatureInput.getText().toString().trim().replace(",", "."));
         } catch (NumberFormatException exc) {
+            stopCalculateLoading();
             showMessage("Ingrese una temperatura valida");
             return;
         }
 
         if (temperature < table.minTemperature() || temperature > table.maxTemperature()) {
+            stopCalculateLoading();
             showMessage(String.format(Locale.US, "La temperatura debe estar entre %.2f y %.2f C", table.minTemperature(), table.maxTemperature()));
             return;
         }
@@ -794,52 +1812,264 @@ public class MainActivity extends Activity {
         }
         resultsLayout.removeAllViews();
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.addView(text(lastPdfTitle, 15, COLOR_PRIMARY, true), matchWrap(0, dp(4), 0, 0));
-        resultsLayout.addView(header, matchWrap(0, 0, 0, 10));
-
         for (int i = 0; i < lastPdfEntries.size(); i++) {
-            View row = resultRow(lastPdfEntries.get(i));
-            resultsLayout.addView(row, matchWrap(0, 0, 0, 10));
+            View row = resultPropertyCard(lastPdfEntries.get(i));
+            resultsLayout.addView(row, matchWrap(0, 0, 0, dp(8)));
             animateView(row, i * 45L);
         }
-
-        exportPdfButton = button("Exportar PDF", COLOR_ACCENT, 0xFF171208);
-        exportPdfButton.setOnClickListener(view -> exportPdf());
-        resultsLayout.addView(exportPdfButton, matchWrap(0, dp(2), 0, 0));
     }
 
-    private View resultRow(ResultEntry entry) {
-        LinearLayout row = new LinearLayout(this);
+    private View resultPropertyCard(ResultEntry entry) {
+        LinearLayout card = new LinearLayout(this);
         String tableKey = tableKeyForEntry(entry);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(12), dp(12), dp(12), dp(12));
-        row.setBackground(gradient(0xFF1B2327, 0xFF222B30, dp(8)));
-        row.setElevation(dp(1));
-        row.addView(text(entry.label, 14, COLOR_MUTED, false), compactWrap());
-        row.addView(text(entry.value, 18, chartColorFor(tableKey), true), compactWrap());
-        TextView help = text(entry.explanation, 13, COLOR_MUTED, false);
-        help.setPadding(0, dp(6), 0, 0);
-        row.addView(help, compactWrap());
+        int trend = trendType(entry);
+        int trendColor = trendColor(trend);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(12), dp(12), dp(12), dp(12));
+        card.setBackground(roundedStroke(COLOR_SURFACE, 0xFF253D37, dp(12)));
+        card.setElevation(dp(2));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView name = text(entry.label.toUpperCase(Locale.US), 10, 0xFF7FA89C, false);
+        name.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        header.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        TextView trendBadge = text(trendLabel(trend), 9, trendColor, false);
+        trendBadge.setPadding(dp(8), dp(4), dp(8), dp(4));
+        trendBadge.setBackground(rounded(0xFF1D4A3C, dp(6)));
+        header.addView(trendBadge, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        card.addView(header, compactWrap());
+
+        LinearLayout valueRow = new LinearLayout(this);
+        valueRow.setOrientation(LinearLayout.HORIZONTAL);
+        valueRow.setGravity(Gravity.BOTTOM);
+        TextView value = text(valueOnly(entry), 20, COLOR_PRIMARY, false);
+        value.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        valueRow.addView(value, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        if (!entry.unit.isEmpty()) {
+            TextView unit = text(" " + entry.unit, 12, 0xFF7FA89C, false);
+            valueRow.addView(unit, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+        card.addView(valueRow, matchWrap(0, dp(7), 0, dp(8)));
+        card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
+        card.addView(formulaBlock(entry), matchWrap(0, dp(8), 0, dp(8)));
+        card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
+        card.addView(descriptionBlock(entry.explanation), matchWrap(0, dp(8), 0, dp(8)));
+        card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
+
         PropertyTable table = tables.get(tableKey);
         PropertySpec prop = propertyForEntry(entry);
         if (table != null && prop != null && !Double.isNaN(entry.temperature)) {
-            ThermoChartView miniChart = new ThermoChartView(this);
-            miniChart.setCompact(true);
-            miniChart.setBackground(roundedStroke(0xFF141A1D, COLOR_BORDER, dp(8)));
-            double[] range = focusedRange(table, entry.temperature);
-            miniChart.setData(table, prop, range[0], range[1], entry.temperature, chartColorFor(tableKey));
-            LinearLayout.LayoutParams chartParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(132));
-            chartParams.setMargins(0, dp(10), 0, 0);
-            row.addView(miniChart, chartParams);
+            MiniTrendChartView miniChart = new MiniTrendChartView(this);
+            miniChart.setBackground(rounded(0xFF1E2F2B, dp(6)));
+            miniChart.setData(table, prop, entry.temperature, trendColor);
+            card.addView(miniChart, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)));
         }
-        return row;
+        return card;
+    }
+
+    private View thinResultDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(0xFF1D3530);
+        return divider;
+    }
+
+    private String valueOnly(ResultEntry entry) {
+        if (entry.unit == null || entry.unit.isEmpty()) {
+            return entry.value;
+        }
+        String suffix = " " + entry.unit;
+        if (entry.value.endsWith(suffix)) {
+            return entry.value.substring(0, entry.value.length() - suffix.length()).trim();
+        }
+        return entry.value;
+    }
+
+    private View formulaBlock(ResultEntry entry) {
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.HORIZONTAL);
+        shell.setBackground(formulaBackground());
+
+        View accent = new View(this);
+        accent.setBackgroundColor(0xFF0F6E56);
+        shell.addView(accent, new LinearLayout.LayoutParams(dp(3), LinearLayout.LayoutParams.MATCH_PARENT));
+
+        FrameLayout box = new FrameLayout(this);
+
+        TextView formula = text(formulaText(entry), 11, 0xFF9FE1CB, false);
+        formula.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+        formula.setLineSpacing(0, 1.18f);
+        formula.setPadding(dp(10), dp(6), dp(34), dp(6));
+        box.addView(formula, compactFrame());
+
+        NavIconView copy = new NavIconView(this, ICON_COPY, 0xFF3A5A52);
+        copy.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(18)));
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(34), dp(34));
+        iconParams.gravity = Gravity.TOP | Gravity.END;
+        box.addView(copy, iconParams);
+        copy.setOnClickListener(view -> {
+            copyFormula(entry);
+            copy.setIconType(ICON_CHECK);
+            copy.setIconColor(COLOR_PRIMARY);
+            copy.invalidate();
+            copy.postDelayed(() -> {
+                copy.setIconType(ICON_COPY);
+                copy.setIconColor(0xFF3A5A52);
+                copy.invalidate();
+            }, 1500);
+        });
+        shell.addView(box, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        return shell;
+    }
+
+    private GradientDrawable formulaBackground() {
+        GradientDrawable drawable = rounded(0xFF1E2F2B, dp(6));
+        drawable.setCornerRadii(new float[] {
+            0, 0,
+            dp(6), dp(6),
+            dp(6), dp(6),
+            0, 0
+        });
+        drawable.setStroke(dp(1), 0xFF1E2F2B);
+        return drawable;
+    }
+
+    private View descriptionBlock(String value) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        TextView description = text(value, 11, 0xFF7FA89C, false);
+        description.setLineSpacing(0, 1.18f);
+        description.setMaxLines(2);
+        description.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        box.addView(description, compactWrap());
+        TextView toggle = text("Ver mas", 11, COLOR_PRIMARY, false);
+        toggle.setVisibility(View.GONE);
+        toggle.setPadding(0, dp(3), 0, 0);
+        box.addView(toggle, compactWrap());
+        description.post(() -> {
+            if (description.getLineCount() > 2 || value.length() > 90) {
+                toggle.setVisibility(View.VISIBLE);
+            }
+        });
+        toggle.setOnClickListener(view -> {
+            boolean expanded = description.getMaxLines() > 2;
+            description.animate().alpha(0.55f).setDuration(80).withEndAction(() -> {
+                description.setMaxLines(expanded ? 2 : Integer.MAX_VALUE);
+                description.setEllipsize(expanded ? android.text.TextUtils.TruncateAt.END : null);
+                toggle.setText(expanded ? "Ver mas" : "Ver menos");
+                description.animate().alpha(1f).setDuration(120).start();
+            }).start();
+        });
+        return box;
+    }
+
+    private FrameLayout.LayoutParams compactFrame() {
+        return new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    private String formulaText(ResultEntry entry) {
+        String expression = formulaExpression(entry.label);
+        String eval = String.format(Locale.US, "@ %.2f C -> %s", entry.temperature, entry.value);
+        return expression + "\nmetodo: spline cubica interpolada\n" + eval;
+    }
+
+    private String formulaExpression(String label) {
+        String lower = label == null ? "" : label.toLowerCase(Locale.US);
+        if (lower.contains("densidad")) {
+            return "rho = m / V";
+        }
+        if (lower.contains("pres")) {
+            return "P_sat = f(T)";
+        }
+        if (lower.contains("expansi")) {
+            return "beta = (1 / V) (dV / dT)";
+        }
+        if (lower.contains("calor")) {
+            return "c_p = dq / (m dT)";
+        }
+        if (lower.contains("conductividad")) {
+            return "k = q L / (A dT)";
+        }
+        if (lower.contains("difusividad")) {
+            return "alpha = k / (rho c_p)";
+        }
+        if (lower.contains("viscosidad cin")) {
+            return "nu = mu / rho";
+        }
+        if (lower.contains("viscosidad")) {
+            return "mu = tau / (du / dy)";
+        }
+        if (lower.contains("prandtl")) {
+            return "Pr = nu / alpha";
+        }
+        if (lower.contains("entalp")) {
+            return "h = u + p v";
+        }
+        if (lower.contains("entrop")) {
+            return "ds = dq_rev / T";
+        }
+        return "propiedad = f(T)";
+    }
+
+    private void copyFormula(ResultEntry entry) {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText("formula", formulaText(entry)));
+            showMessage("Formula copiada.");
+        }
+    }
+
+    private int trendType(ResultEntry entry) {
+        PropertyTable table = tables.get(tableKeyForEntry(entry));
+        PropertySpec prop = propertyForEntry(entry);
+        if (table == null || prop == null) {
+            return 0;
+        }
+        double min = table.minTemperature();
+        double max = table.maxTemperature();
+        double previous = table.valueFor(prop.column, min);
+        int direction = 0;
+        for (int i = 1; i <= 20; i++) {
+            double x = min + (max - min) * i / 20.0;
+            double current = table.valueFor(prop.column, x);
+            double delta = current - previous;
+            int step = Math.abs(delta) < 1e-9 ? 0 : (delta > 0 ? 1 : -1);
+            if (step != 0) {
+                if (direction == 0) {
+                    direction = step;
+                } else if (direction != step) {
+                    return 0;
+                }
+            }
+            previous = current;
+        }
+        return direction == 0 ? 0 : direction;
+    }
+
+    private String trendLabel(int trend) {
+        if (trend > 0) {
+            return "creciente";
+        }
+        if (trend < 0) {
+            return "decreciente";
+        }
+        return "no lineal";
+    }
+
+    private int trendColor(int trend) {
+        if (trend > 0) {
+            return COLOR_PRIMARY;
+        }
+        if (trend < 0) {
+            return COLOR_ACCENT;
+        }
+        return 0xFFD85A30;
     }
 
     private TableSpec selectedSpec() {
-        int index = Math.max(0, tableSpinner.getSelectedItemPosition());
-        return TABLES[index];
+        selectedTableIndex = Math.max(0, Math.min(TABLES.length - 1, selectedTableIndex));
+        return TABLES[selectedTableIndex];
     }
 
     private View card(View child) {
@@ -866,31 +2096,6 @@ public class MainActivity extends Activity {
         return text(value, 15, COLOR_MUTED, false);
     }
 
-    private ArrayAdapter<String> spinnerAdapter(String[] values) {
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, values) {
-            @Override
-            public View getView(int position, View convertView, ViewGroup parent) {
-                TextView view = (TextView) super.getView(position, convertView, parent);
-                view.setTextColor(COLOR_TEXT);
-                view.setTextSize(15);
-                view.setPadding(dp(12), 0, dp(12), 0);
-                return view;
-            }
-
-            @Override
-            public View getDropDownView(int position, View convertView, ViewGroup parent) {
-                TextView view = (TextView) super.getDropDownView(position, convertView, parent);
-                view.setTextColor(COLOR_TEXT);
-                view.setTextSize(15);
-                view.setBackgroundColor(COLOR_SURFACE_2);
-                view.setPadding(dp(14), dp(12), dp(14), dp(12));
-                return view;
-            }
-        };
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        return adapter;
-    }
-
     private Button button(String value, int background, int textColor) {
         Button button = new Button(this);
         button.setText(value);
@@ -915,7 +2120,8 @@ public class MainActivity extends Activity {
 
     private void addHistory(String title, List<String> lines, List<ResultEntry> entries, String tableKey, double temperature) {
         String time = new SimpleDateFormat("HH:mm", Locale.US).format(new Date());
-        history.add(0, new CalculationRecord(time, title, new ArrayList<>(lines), new ArrayList<>(entries), tableKey, temperature));
+        String dateKey = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+        history.add(0, new CalculationRecord(dateKey, time, title, new ArrayList<>(lines), new ArrayList<>(entries), tableKey, temperature));
         while (history.size() > 8) {
             history.remove(history.size() - 1);
         }
@@ -928,38 +2134,426 @@ public class MainActivity extends Activity {
             return;
         }
         historyLayout.removeAllViews();
-        historyLayout.addView(text("Historial de cálculos", 20, COLOR_TEXT, true), matchWrap(0, 0, 0, 8));
+        historyHeaderViews.clear();
+        historyLayout.addView(historyScreenHeader(), matchWrap(0, 0, 0, 14));
         if (history.isEmpty()) {
-            historyLayout.addView(body("Aún no hay cálculos guardados."), compactWrap());
+            if (historyStickyHeader != null) {
+                historyStickyHeader.setVisibility(View.GONE);
+            }
+            historyLayout.addView(historyEmptyState(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(420)));
             return;
         }
-        Button clearAll = button("Borrar todo", COLOR_SURFACE_2, COLOR_DANGER);
-        clearAll.setOnClickListener(view -> clearHistory());
-        historyLayout.addView(clearAll, matchWrap(0, 0, 0, 10));
+
+        String currentSection = "";
         for (CalculationRecord record : history) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(8), 0, 0);
-
-            TextView item = text(record.time + "  " + record.title, 14, COLOR_TEXT, true);
-            item.setPadding(dp(12), dp(10), dp(12), dp(10));
-            item.setBackground(roundedStroke(COLOR_SURFACE_2, COLOR_BORDER, dp(8)));
-            row.addView(item, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-
-            Button viewButton = button("Ver", COLOR_PRIMARY, 0xFF07100F);
-            viewButton.setOnClickListener(view -> showHistoryRecord(record));
-            LinearLayout.LayoutParams viewParams = new LinearLayout.LayoutParams(dp(58), dp(44));
-            viewParams.setMargins(dp(8), 0, 0, 0);
-            row.addView(viewButton, viewParams);
-
-            Button delete = button("Borrar", 0xFF2A1B1D, COLOR_DANGER);
-            delete.setOnClickListener(view -> deleteHistoryRecord(record));
-            LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(dp(78), dp(44));
-            deleteParams.setMargins(dp(6), 0, 0, 0);
-            row.addView(delete, deleteParams);
-            historyLayout.addView(row, compactWrap());
+            String section = historyDateHeader(record.dateKey);
+            if (!section.equals(currentSection)) {
+                View header = historySectionHeader(section);
+                historyHeaderViews.add(header);
+                historyLayout.addView(header, matchWrap(0, currentSection.isEmpty() ? 0 : dp(12), 0, dp(8)));
+                currentSection = section;
+            }
+            historyLayout.addView(historyRecordCard(record), matchWrap(0, 0, 0, dp(8)));
         }
+        historyLayout.post(this::updateHistoryStickyHeader);
+    }
+
+    private void updateHistoryStickyHeader() {
+        if (historyStickyHeader == null || historyStickyText == null) {
+            return;
+        }
+        if (currentScreen != SCREEN_HISTORY || history.isEmpty() || historyHeaderViews.isEmpty()) {
+            historyStickyHeader.setVisibility(View.GONE);
+            return;
+        }
+        int stickyTop = dp(88);
+        int[] pos = new int[2];
+        String active = "";
+        for (View header : historyHeaderViews) {
+            header.getLocationOnScreen(pos);
+            if (pos[1] <= stickyTop + dp(6)) {
+                Object tag = header.getTag();
+                active = tag == null ? "" : tag.toString();
+            }
+        }
+        if (active.isEmpty()) {
+            historyStickyHeader.setVisibility(View.GONE);
+            return;
+        }
+        historyStickyText.setText(active.toUpperCase(Locale.US));
+        historyStickyHeader.setVisibility(View.VISIBLE);
+    }
+
+    private View historyScreenHeader() {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView title = text("Historial", 18, COLOR_TEXT, false);
+        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        header.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        TextView badge = text(String.valueOf(history.size()), 9, COLOR_PRIMARY, true);
+        badge.setGravity(Gravity.CENTER);
+        badge.setBackground(rounded(0xFF1D4A3C, dp(9)));
+        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(dp(18), dp(18));
+        badgeParams.setMargins(dp(8), 0, 0, 0);
+        header.addView(badge, badgeParams);
+
+        View spacer = new View(this);
+        header.addView(spacer, new LinearLayout.LayoutParams(0, dp(1), 1));
+
+        NavIconView dots = new NavIconView(this, ICON_DOTS, 0xFF7FA89C);
+        dots.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(20)));
+        dots.setOnClickListener(this::showHistoryOverflowMenu);
+        header.addView(dots, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        return header;
+    }
+
+    private View historySectionHeader(String label) {
+        LinearLayout wrapper = new LinearLayout(this);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+        wrapper.setTag(label);
+        TextView header = text(label.toUpperCase(Locale.US), 9, 0xFF3A5A52, false);
+        header.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        header.setLetterSpacing(0.06f);
+        wrapper.addView(header, compactWrap());
+        View line = new View(this);
+        line.setBackgroundColor(0xFF1D3530);
+        LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f)));
+        lineParams.setMargins(0, dp(6), 0, 0);
+        wrapper.addView(line, lineParams);
+        return wrapper;
+    }
+
+    private LinearLayout stickyHistoryHeaderView() {
+        LinearLayout wrapper = new LinearLayout(this);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+        historyStickyText = text("", 9, 0xFF3A5A52, false);
+        historyStickyText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        historyStickyText.setLetterSpacing(0.06f);
+        wrapper.addView(historyStickyText, compactWrap());
+        View line = new View(this);
+        line.setBackgroundColor(0xFF1D3530);
+        LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f)));
+        lineParams.setMargins(0, dp(6), 0, 0);
+        wrapper.addView(line, lineParams);
+        return wrapper;
+    }
+
+    private View historyRecordCard(CalculationRecord record) {
+        FrameLayout shell = new FrameLayout(this);
+        LinearLayout deleteAction = new LinearLayout(this);
+        deleteAction.setGravity(Gravity.CENTER);
+        deleteAction.setBackgroundColor(0xFF2D1A14);
+        FrameLayout.LayoutParams deleteParams = new FrameLayout.LayoutParams(dp(64), dp(58));
+        deleteParams.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
+        deleteAction.addView(new NavIconView(this, ICON_TRASH, 0xFFD85A30), new LinearLayout.LayoutParams(dp(34), dp(34)));
+        shell.addView(deleteAction, deleteParams);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.setBackground(roundedStroke(COLOR_SURFACE, 0xFF253D37, dp(10)));
+
+        LinearLayout avatar = new LinearLayout(this);
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setBackground(rounded(0xFF1D4A3C, dp(17)));
+        avatar.addView(new NavIconView(this, iconForTable(record.tableKey), colorForTable(record.tableKey)), new LinearLayout.LayoutParams(dp(24), dp(24)));
+        card.addView(avatar, new LinearLayout.LayoutParams(dp(34), dp(34)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(10), 0, dp(8), 0);
+        TextView title = text(historyTitle(record), 12, COLOR_TEXT, false);
+        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        copy.addView(title, compactWrap());
+
+        LinearLayout timeRow = new LinearLayout(this);
+        timeRow.setOrientation(LinearLayout.HORIZONTAL);
+        timeRow.setGravity(Gravity.CENTER_VERTICAL);
+        timeRow.addView(new NavIconView(this, ICON_HISTORY, 0xFF7FA89C), new LinearLayout.LayoutParams(dp(14), dp(14)));
+        TextView time = text(" " + historyRelativeTime(record), 10, 0xFF7FA89C, false);
+        timeRow.addView(time, compactWrap());
+        copy.addView(timeRow, matchWrap(0, dp(3), 0, 0));
+        card.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        TextView viewChip = text("Ver", 10, COLOR_PRIMARY, false);
+        viewChip.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        viewChip.setGravity(Gravity.CENTER);
+        viewChip.setPadding(dp(8), dp(4), dp(8), dp(4));
+        viewChip.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(6)));
+        viewChip.setOnClickListener(view -> showHistoryRecord(record));
+        card.addView(viewChip, new LinearLayout.LayoutParams(dp(48), dp(30)));
+
+        shell.addView(card, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(58)));
+        attachSwipeToDelete(shell, card, record);
+        return shell;
+    }
+
+    private void attachSwipeToDelete(View shell, View card, CalculationRecord record) {
+        final float[] downX = {0f};
+        final boolean[] dragging = {false};
+        card.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                downX[0] = event.getRawX();
+                dragging[0] = false;
+                return true;
+            }
+            if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                float delta = event.getRawX() - downX[0];
+                if (delta < -dp(4)) {
+                    dragging[0] = true;
+                    view.setTranslationX(Math.max(delta, -view.getWidth()));
+                    return true;
+                }
+            }
+            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                float offset = view.getTranslationX();
+                if (dragging[0]) {
+                    if (Math.abs(offset) > view.getWidth() * 0.5f) {
+                        animateHistoryDelete(shell, view, record);
+                    } else {
+                        view.animate()
+                            .translationX(0f)
+                            .setDuration(260)
+                            .setInterpolator(new DecelerateInterpolator(1.6f))
+                            .start();
+                    }
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    private void animateHistoryDelete(View shell, View card, CalculationRecord record) {
+        card.animate()
+            .translationX(-Math.max(card.getWidth(), dp(320)))
+            .setDuration(200)
+            .setInterpolator(new AccelerateDecelerateInterpolator())
+            .withEndAction(() -> {
+                ValueAnimator collapse = ValueAnimator.ofInt(shell.getHeight(), 0);
+                collapse.setDuration(250);
+                collapse.addUpdateListener(animation -> {
+                    LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) shell.getLayoutParams();
+                    params.height = (int) animation.getAnimatedValue();
+                    shell.setLayoutParams(params);
+                });
+                collapse.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        history.remove(record);
+                        saveHistory();
+                        renderHistory();
+                    }
+                });
+                collapse.start();
+            })
+            .start();
+    }
+
+    private View historyEmptyState() {
+        LinearLayout empty = new LinearLayout(this);
+        empty.setOrientation(LinearLayout.VERTICAL);
+        empty.setGravity(Gravity.CENTER);
+        empty.addView(new NavIconView(this, ICON_EMPTY_HISTORY, 0xFF3A5A52), new LinearLayout.LayoutParams(dp(60), dp(80)));
+        TextView title = text("Sin cálculos guardados", 15, 0xFF7FA89C, false);
+        title.setGravity(Gravity.CENTER);
+        empty.addView(title, matchWrap(0, dp(16), 0, 0));
+        TextView subtitle = text("Realiza tu primer cálculo para verlo aquí", 12, 0xFF3A5A52, false);
+        subtitle.setGravity(Gravity.CENTER);
+        empty.addView(subtitle, matchWrap(0, dp(6), 0, 0));
+        TextView cta = text("Ir a calcular", 13, COLOR_PRIMARY, false);
+        cta.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        cta.setGravity(Gravity.CENTER);
+        cta.setPadding(dp(24), dp(10), dp(24), dp(10));
+        cta.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(24)));
+        cta.setOnClickListener(view -> showCalculatorScreen());
+        empty.addView(cta, matchWrap(0, dp(20), 0, 0));
+        empty.setAlpha(0f);
+        empty.post(() -> empty.animate().alpha(1f).setDuration(300).start());
+        return empty;
+    }
+
+    private void showHistoryOverflowMenu(View anchor) {
+        if (historyMenuPopup != null && historyMenuPopup.isShowing()) {
+            historyMenuPopup.dismiss();
+            return;
+        }
+        LinearLayout menu = new LinearLayout(this);
+        menu.setOrientation(LinearLayout.HORIZONTAL);
+        menu.setGravity(Gravity.CENTER_VERTICAL);
+        menu.setPadding(dp(12), dp(8), dp(12), dp(8));
+        menu.setBackground(roundedStroke(COLOR_SURFACE, 0xFF253D37, dp(10)));
+
+        menu.addView(new NavIconView(this, ICON_TRASH, 0xFFD85A30), new LinearLayout.LayoutParams(dp(24), dp(24)));
+        TextView label = text("Borrar todo", 13, 0xFFD85A30, false);
+        label.setPadding(dp(8), 0, 0, 0);
+        menu.addView(label, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(36)));
+        menu.setOnClickListener(view -> {
+            if (historyMenuPopup != null) {
+                historyMenuPopup.dismiss();
+            }
+            showClearHistoryBottomSheet();
+        });
+
+        historyMenuPopup = new PopupWindow(menu, dp(164), dp(52), true);
+        historyMenuPopup.setBackgroundDrawable(rounded(0x00000000, 0));
+        historyMenuPopup.setOutsideTouchable(true);
+        historyMenuPopup.showAsDropDown(anchor, -dp(132), -dp(4));
+    }
+
+    private void showClearHistoryBottomSheet() {
+        if (bottomSheetOverlay != null) {
+            rootLayout.removeView(bottomSheetOverlay);
+        }
+        bottomSheetOverlay = new FrameLayout(this);
+        bottomSheetOverlay.setBackgroundColor(0x80000000);
+        bottomSheetOverlay.setOnClickListener(view -> dismissBottomSheet());
+
+        LinearLayout sheet = new LinearLayout(this);
+        sheet.setOrientation(LinearLayout.VERTICAL);
+        sheet.setPadding(dp(18), dp(18), dp(18), dp(18));
+        sheet.setBackground(roundedStroke(COLOR_SURFACE, 0xFF253D37, dp(16)));
+        sheet.setOnClickListener(view -> { });
+
+        TextView title = text(String.format(Locale.US, "¿Eliminar los %d cálculos?", history.size()), 18, COLOR_TEXT, true);
+        sheet.addView(title, compactWrap());
+        sheet.addView(text("Esta acción borra todo el historial guardado en el dispositivo.", 12, 0xFF7FA89C, false), matchWrap(0, dp(6), 0, dp(14)));
+
+        TextView destroy = text("Eliminar historial", 13, 0xFFFFFFFF, true);
+        destroy.setGravity(Gravity.CENTER);
+        destroy.setPadding(0, dp(12), 0, dp(12));
+        destroy.setBackground(rippleBackground(0xFFD85A30, 0x33FFFFFF, dp(12)));
+        destroy.setOnClickListener(view -> {
+            dismissBottomSheet();
+            clearHistory();
+        });
+        sheet.addView(destroy, compactWrap());
+
+        TextView cancel = text("Cancelar", 13, COLOR_MUTED, false);
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setPadding(0, dp(14), 0, 0);
+        cancel.setOnClickListener(view -> dismissBottomSheet());
+        sheet.addView(cancel, compactWrap());
+
+        FrameLayout.LayoutParams sheetParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        sheetParams.gravity = Gravity.BOTTOM;
+        sheetParams.leftMargin = dp(12);
+        sheetParams.rightMargin = dp(12);
+        sheetParams.bottomMargin = dp(12);
+        bottomSheetOverlay.addView(sheet, sheetParams);
+        rootLayout.addView(bottomSheetOverlay, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        sheet.setTranslationY(dp(240));
+        sheet.animate().translationY(0f).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
+    }
+
+    private void dismissBottomSheet() {
+        if (bottomSheetOverlay != null) {
+            rootLayout.removeView(bottomSheetOverlay);
+            bottomSheetOverlay = null;
+        }
+    }
+
+    private String historyDateHeader(String dateKey) {
+        Calendar record = calendarFromKey(dateKey);
+        Calendar today = Calendar.getInstance();
+        Calendar yesterday = Calendar.getInstance();
+        yesterday.add(Calendar.DAY_OF_YEAR, -1);
+        if (sameDay(record, today)) {
+            return "Hoy · " + dayMonth(record);
+        }
+        if (sameDay(record, yesterday)) {
+            return "Ayer";
+        }
+        return dayMonth(record);
+    }
+
+    private String historyRelativeTime(CalculationRecord record) {
+        Calendar recordDate = calendarFromKey(record.dateKey);
+        Calendar today = Calendar.getInstance();
+        Calendar yesterday = Calendar.getInstance();
+        yesterday.add(Calendar.DAY_OF_YEAR, -1);
+        if (sameDay(recordDate, today)) {
+            return "Hoy, " + record.time;
+        }
+        if (sameDay(recordDate, yesterday)) {
+            return "Ayer, " + record.time;
+        }
+        return dayMonthShort(recordDate) + ", " + record.time;
+    }
+
+    private String dayMonth(Calendar calendar) {
+        return calendar.get(Calendar.DAY_OF_MONTH) + " " + spanishMonth(calendar.get(Calendar.MONTH));
+    }
+
+    private String dayMonthShort(Calendar calendar) {
+        return calendar.get(Calendar.DAY_OF_MONTH) + " " + spanishMonth(calendar.get(Calendar.MONTH)).substring(0, 3);
+    }
+
+    private String spanishMonth(int month) {
+        String[] months = {"enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"};
+        return months[Math.max(0, Math.min(months.length - 1, month))];
+    }
+
+    private Calendar calendarFromKey(String dateKey) {
+        Calendar calendar = Calendar.getInstance();
+        try {
+            Date parsed = new SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateKey);
+            if (parsed != null) {
+                calendar.setTime(parsed);
+            }
+        } catch (Exception ignored) {
+        }
+        return calendar;
+    }
+
+    private boolean sameDay(Calendar first, Calendar second) {
+        return first.get(Calendar.YEAR) == second.get(Calendar.YEAR)
+            && first.get(Calendar.DAY_OF_YEAR) == second.get(Calendar.DAY_OF_YEAR);
+    }
+
+    private String historyTitle(CalculationRecord record) {
+        String fluid = tableTitle(record.tableKey);
+        double temp = Double.isNaN(record.temperature) ? extractTemperature(record.lines) : record.temperature;
+        if (Double.isNaN(temp)) {
+            return record.title;
+        }
+        return String.format(Locale.US, "%s · %.2f °C", fluid, temp);
+    }
+
+    private String tableTitle(String tableKey) {
+        for (TableSpec spec : TABLES) {
+            if (spec.key.equals(tableKey)) {
+                return spec.title;
+            }
+        }
+        return "Cálculo";
+    }
+
+    private int iconForTable(String tableKey) {
+        if ("water".equals(tableKey)) {
+            return ICON_DROPLET;
+        }
+        if ("air".equals(tableKey)) {
+            return ICON_WIND;
+        }
+        if ("steam".equals(tableKey)) {
+            return ICON_CLOUD;
+        }
+        return ICON_THERMOMETER;
+    }
+
+    private int colorForTable(String tableKey) {
+        if ("air".equals(tableKey)) {
+            return 0xFF85B7EB;
+        }
+        if ("steam".equals(tableKey)) {
+            return 0xFF9FE1CB;
+        }
+        return COLOR_PRIMARY;
     }
 
     private void showHistoryRecord(CalculationRecord record) {
@@ -977,14 +2571,12 @@ public class MainActivity extends Activity {
         history.remove(record);
         saveHistory();
         renderHistory();
-        showMessage("Elemento eliminado del historial.");
     }
 
     private void clearHistory() {
         history.clear();
         saveHistory();
         renderHistory();
-        showMessage("Historial borrado.");
     }
 
     private void loadHistory() {
@@ -1007,8 +2599,9 @@ public class MainActivity extends Activity {
             List<String> lines = splitStoredList(fields[2]);
             String tableKey = fields.length >= 5 ? unescape(fields[4]) : inferTableKey(title);
             double temperature = fields.length >= 6 ? parseStoredDouble(unescape(fields[5])) : extractTemperature(lines);
+            String dateKey = fields.length >= 7 ? unescape(fields[6]) : new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
             List<ResultEntry> entries = decodeEntries(fields[3], tableKey, temperature);
-            history.add(new CalculationRecord(unescape(fields[0]), title, lines, entries, tableKey, temperature));
+            history.add(new CalculationRecord(dateKey, unescape(fields[0]), title, lines, entries, tableKey, temperature));
         }
     }
 
@@ -1023,7 +2616,8 @@ public class MainActivity extends Activity {
                 .append(joinStoredList(record.lines)).append(FIELD_SEPARATOR)
                 .append(encodeEntries(record.entries)).append(FIELD_SEPARATOR)
                 .append(escape(record.tableKey)).append(FIELD_SEPARATOR)
-                .append(escape(String.format(Locale.US, "%.6f", record.temperature)));
+                .append(escape(String.format(Locale.US, "%.6f", record.temperature))).append(FIELD_SEPARATOR)
+                .append(escape(record.dateKey));
         }
         getSharedPreferences(HISTORY_PREFS, MODE_PRIVATE)
             .edit()
@@ -1155,6 +2749,8 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CREATE_PDF && resultCode == RESULT_OK && data != null && data.getData() != null) {
             writePdf(data.getData());
+        } else if (requestCode == REQUEST_CREATE_PDF) {
+            setExportPdfState("normal");
         }
     }
 
@@ -1177,8 +2773,10 @@ public class MainActivity extends Activity {
         try (OutputStream output = getContentResolver().openOutputStream(uri)) {
             document.writeTo(output);
             showMessage("PDF exportado correctamente.");
+            flashExportPdfSuccess();
         } catch (Exception exc) {
             showMessage("No se pudo exportar el PDF.");
+            setExportPdfState("normal");
         } finally {
             document.close();
         }
@@ -1233,7 +2831,7 @@ public class MainActivity extends Activity {
 
     private int pdfResultBlockHeight(ResultEntry entry) {
         int textLines = splitForPdf(entry.explanation, 70).size();
-        return 68 + textLines * 12 + 124;
+        return 112 + textLines * 12 + 96;
     }
 
     private int drawPdfResultBlock(Canvas canvas, Paint paint, ResultEntry entry, int startY) {
@@ -1258,13 +2856,30 @@ public class MainActivity extends Activity {
         canvas.drawText(trimForPdf(entry.label, 48), left + 12, startY + 20, paint);
 
         paint.setTextSize(16);
-        paint.setColor(chartColorFor(tableKey));
+        paint.setColor(COLOR_PRIMARY);
         canvas.drawText(trimForPdf(entry.value, 40), left + 12, startY + 40, paint);
+
+        paint.setTypeface(Typeface.DEFAULT);
+        paint.setTextSize(9);
+        paint.setColor(0xFF9FE1CB);
+        int formulaTop = startY + 52;
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(0xFF1E2F2B);
+        canvas.drawRoundRect(left + 12, formulaTop, right - 12, formulaTop + 42, 5, 5, paint);
+        paint.setColor(0xFF0F6E56);
+        canvas.drawRect(left + 12, formulaTop, left + 16, formulaTop + 42, paint);
+        paint.setColor(0xFF9FE1CB);
+        paint.setTypeface(Typeface.MONOSPACE);
+        int fy = formulaTop + 12;
+        for (String line : formulaText(entry).split("\\n")) {
+            canvas.drawText(trimForPdf(line, 72), left + 22, fy, paint);
+            fy += 12;
+        }
 
         paint.setTypeface(Typeface.DEFAULT);
         paint.setTextSize(10);
         paint.setColor(COLOR_MUTED);
-        int textY = startY + 58;
+        int textY = formulaTop + 58;
         for (String part : splitForPdf(entry.explanation, 70)) {
             canvas.drawText(part, left + 12, textY, paint);
             textY += 12;
@@ -1273,7 +2888,7 @@ public class MainActivity extends Activity {
         PropertyTable table = tables.get(tableKey);
         PropertySpec prop = propertyForEntry(entry);
         if (table != null && prop != null && !Double.isNaN(entry.temperature)) {
-            double[] range = focusedRange(table, entry.temperature);
+            double[] range = selectedGraphRange(table);
             List<Double> xValues = new ArrayList<>();
             List<Double> yValues = new ArrayList<>();
             fillChartValues(table, prop, range[0], range[1], xValues, yValues, 44);
@@ -1288,7 +2903,7 @@ public class MainActivity extends Activity {
                 range[1],
                 entry.temperature,
                 table.valueFor(prop.column, entry.temperature),
-                chartColorFor(tableKey),
+                trendColor(trendType(entry)),
                 left + 10,
                 textY + 6,
                 right - 10,
@@ -1592,6 +3207,18 @@ public class MainActivity extends Activity {
         return drawable;
     }
 
+    private GradientDrawable drawerBackground() {
+        GradientDrawable drawable = rounded(0xFF132320, 0);
+        drawable.setCornerRadii(new float[] {
+            0, 0,
+            dp(16), dp(16),
+            dp(16), dp(16),
+            0, 0
+        });
+        drawable.setStroke(dp(1), 0xFF1D4A3C);
+        return drawable;
+    }
+
     private RippleDrawable rippleBackground(int color, int rippleColor, int radius) {
         return new RippleDrawable(
             ColorStateList.valueOf(rippleColor),
@@ -1623,7 +3250,7 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams navItemWrap(int top) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(56), dp(56));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
         params.setMargins(0, top, 0, 0);
         return params;
     }
@@ -2016,12 +3643,64 @@ public class MainActivity extends Activity {
         }
     }
 
+    private final class HexHeroCard extends FrameLayout {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path hex = new Path();
+
+        HexHeroCard(Context context) {
+            super(context);
+            setWillNotDraw(false);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(1));
+            paint.setColor(withAlpha(COLOR_PRIMARY, 15));
+            float cellW = dp(24);
+            float cellH = dp(20);
+            float radius = cellH * 0.45f;
+            for (float y = -cellH; y < getHeight() + cellH; y += cellH * 0.75f) {
+                int row = Math.round(y / (cellH * 0.75f));
+                float offset = row % 2 == 0 ? 0 : cellW * 0.5f;
+                for (float x = -cellW; x < getWidth() + cellW; x += cellW) {
+                    drawHex(canvas, x + offset + cellW * 0.5f, y + cellH * 0.5f, radius);
+                }
+            }
+        }
+
+        private void drawHex(Canvas canvas, float cx, float cy, float r) {
+            hex.reset();
+            for (int i = 0; i < 6; i++) {
+                double angle = Math.PI / 6 + i * Math.PI / 3;
+                float x = cx + (float) Math.cos(angle) * r;
+                float y = cy + (float) Math.sin(angle) * r;
+                if (i == 0) {
+                    hex.moveTo(x, y);
+                } else {
+                    hex.lineTo(x, y);
+                }
+            }
+            hex.close();
+            canvas.drawPath(hex, paint);
+        }
+    }
+
     private final class BackArrowView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path arrow = new Path();
+        private final int arrowColor;
+        private final boolean drawRing;
 
         BackArrowView(Context context) {
+            this(context, COLOR_TEXT, true);
+        }
+
+        BackArrowView(Context context, int arrowColor, boolean drawRing) {
             super(context);
+            this.arrowColor = arrowColor;
+            this.drawRing = drawRing;
             setPadding(dp(8), dp(8), dp(8), dp(8));
         }
 
@@ -2038,7 +3717,7 @@ public class MainActivity extends Activity {
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setStrokeJoin(Paint.Join.ROUND);
             paint.setStrokeWidth(dp(3));
-            paint.setColor(COLOR_TEXT);
+            paint.setColor(arrowColor);
 
             arrow.reset();
             arrow.moveTo(cx + size * 0.55f, cy - size);
@@ -2047,10 +3726,12 @@ public class MainActivity extends Activity {
             canvas.drawPath(arrow, paint);
             canvas.drawLine(cx - size * 0.45f, cy, cx + size * 1.10f, cy, paint);
 
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dp(1));
-            paint.setColor(withAlpha(COLOR_PRIMARY, 90));
-            canvas.drawCircle(cx, cy, size * 1.55f, paint);
+            if (drawRing) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(1));
+                paint.setColor(withAlpha(COLOR_PRIMARY, 90));
+                canvas.drawCircle(cx, cy, size * 1.55f, paint);
+            }
         }
     }
 
@@ -2087,14 +3768,22 @@ public class MainActivity extends Activity {
     private final class NavIconView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
-        private final int iconType;
-        private final int iconColor;
+        private int iconType;
+        private int iconColor;
 
         NavIconView(Context context, int iconType, int iconColor) {
             super(context);
             this.iconType = iconType;
             this.iconColor = iconColor;
             setPadding(dp(10), dp(10), dp(10), dp(10));
+        }
+
+        void setIconType(int iconType) {
+            this.iconType = iconType;
+        }
+
+        void setIconColor(int iconColor) {
+            this.iconColor = iconColor;
         }
 
         @Override
@@ -2115,11 +3804,13 @@ public class MainActivity extends Activity {
             paint.setTypeface(Typeface.DEFAULT);
 
             if (iconType == ICON_MENU) {
-                float left = cx - size;
-                float right = cx + size;
-                canvas.drawLine(left, cy - size * 0.72f, right, cy - size * 0.72f, paint);
+                paint.setStrokeWidth(dp(1.5f));
+                float left = cx - dp(8);
+                float right = cx + dp(8);
+                float gap = dp(4.5f);
+                canvas.drawLine(left, cy - gap, right, cy - gap, paint);
                 canvas.drawLine(left, cy, right, cy, paint);
-                canvas.drawLine(left, cy + size * 0.72f, right, cy + size * 0.72f, paint);
+                canvas.drawLine(left, cy + gap, right, cy + gap, paint);
                 return;
             }
 
@@ -2230,11 +3921,346 @@ public class MainActivity extends Activity {
                 return;
             }
 
+            if (iconType == ICON_DROPLET) {
+                path.reset();
+                path.moveTo(cx, cy - size * 1.15f);
+                path.cubicTo(cx + size * 0.95f, cy - size * 0.18f, cx + size * 0.78f, cy + size * 0.95f, cx, cy + size);
+                path.cubicTo(cx - size * 0.78f, cy + size * 0.95f, cx - size * 0.95f, cy - size * 0.18f, cx, cy - size * 1.15f);
+                canvas.drawPath(path, paint);
+                return;
+            }
+
+            if (iconType == ICON_WIND) {
+                canvas.drawLine(cx - size * 1.05f, cy - size * 0.55f, cx + size * 0.72f, cy - size * 0.55f, paint);
+                canvas.drawArc(cx + size * 0.35f, cy - size * 0.95f, cx + size * 1.12f, cy - size * 0.18f, 260, 210, false, paint);
+                canvas.drawLine(cx - size * 1.05f, cy, cx + size * 1.05f, cy, paint);
+                canvas.drawLine(cx - size * 1.05f, cy + size * 0.55f, cx + size * 0.55f, cy + size * 0.55f, paint);
+                canvas.drawArc(cx + size * 0.18f, cy + size * 0.18f, cx + size * 0.95f, cy + size * 0.95f, 270, 210, false, paint);
+                return;
+            }
+
+            if (iconType == ICON_CLOUD) {
+                canvas.drawArc(cx - size * 1.10f, cy - size * 0.12f, cx - size * 0.15f, cy + size * 0.82f, 180, 180, false, paint);
+                canvas.drawArc(cx - size * 0.55f, cy - size * 0.82f, cx + size * 0.35f, cy + size * 0.18f, 200, 210, false, paint);
+                canvas.drawArc(cx + size * 0.02f, cy - size * 0.55f, cx + size * 1.08f, cy + size * 0.72f, 225, 210, false, paint);
+                canvas.drawLine(cx - size * 0.68f, cy + size * 0.82f, cx + size * 0.66f, cy + size * 0.82f, paint);
+                return;
+            }
+
+            if (iconType == ICON_THERMOMETER) {
+                canvas.drawLine(cx, cy - size * 1.05f, cx, cy + size * 0.25f, paint);
+                canvas.drawCircle(cx, cy + size * 0.65f, size * 0.36f, paint);
+                canvas.drawLine(cx + size * 0.28f, cy - size * 0.72f, cx + size * 0.65f, cy - size * 0.72f, paint);
+                canvas.drawLine(cx + size * 0.28f, cy - size * 0.25f, cx + size * 0.55f, cy - size * 0.25f, paint);
+                return;
+            }
+
+            if (iconType == ICON_TRASH) {
+                canvas.drawLine(cx - size * 0.82f, cy - size * 0.65f, cx + size * 0.82f, cy - size * 0.65f, paint);
+                canvas.drawLine(cx - size * 0.35f, cy - size, cx + size * 0.35f, cy - size, paint);
+                canvas.drawLine(cx - size * 0.55f, cy - size * 0.38f, cx - size * 0.42f, cy + size * 0.9f, paint);
+                canvas.drawLine(cx + size * 0.55f, cy - size * 0.38f, cx + size * 0.42f, cy + size * 0.9f, paint);
+                canvas.drawLine(cx - size * 0.42f, cy + size * 0.9f, cx + size * 0.42f, cy + size * 0.9f, paint);
+                canvas.drawLine(cx - size * 0.35f, cy - size * 0.05f, cx + size * 0.35f, cy + size * 0.65f, paint);
+                canvas.drawLine(cx + size * 0.35f, cy - size * 0.05f, cx - size * 0.35f, cy + size * 0.65f, paint);
+                return;
+            }
+
+            if (iconType == ICON_DOTS) {
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(cx, cy - size * 0.55f, size * 0.14f, paint);
+                canvas.drawCircle(cx, cy, size * 0.14f, paint);
+                canvas.drawCircle(cx, cy + size * 0.55f, size * 0.14f, paint);
+                paint.setStyle(Paint.Style.STROKE);
+                return;
+            }
+
+            if (iconType == ICON_EMPTY_HISTORY) {
+                canvas.drawLine(cx, cy - size * 1.1f, cx, cy + size * 0.2f, paint);
+                canvas.drawCircle(cx, cy + size * 0.62f, size * 0.34f, paint);
+                paint.setTextSize(size * 0.9f);
+                paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                canvas.drawText("?", cx + size * 0.42f, cy - size * 0.1f, paint);
+                paint.setTypeface(Typeface.DEFAULT);
+                return;
+            }
+
+            if (iconType == ICON_BOLT) {
+                path.reset();
+                path.moveTo(cx + size * 0.12f, cy - size * 1.05f);
+                path.lineTo(cx - size * 0.55f, cy + size * 0.05f);
+                path.lineTo(cx + size * 0.08f, cy + size * 0.05f);
+                path.lineTo(cx - size * 0.12f, cy + size * 1.05f);
+                path.lineTo(cx + size * 0.62f, cy - size * 0.18f);
+                path.lineTo(cx, cy - size * 0.18f);
+                path.close();
+                canvas.drawPath(path, paint);
+                return;
+            }
+
+            if (iconType == ICON_RULER) {
+                canvas.drawRoundRect(cx - size, cy - size * 0.45f, cx + size, cy + size * 0.45f, dp(4), dp(4), paint);
+                for (int i = 0; i < 5; i++) {
+                    float x = cx - size * 0.72f + i * size * 0.36f;
+                    canvas.drawLine(x, cy - size * 0.45f, x, cy - size * (i % 2 == 0 ? 0.05f : 0.2f), paint);
+                }
+                canvas.drawLine(cx - size * 0.72f, cy + size * 0.7f, cx + size * 0.72f, cy - size * 0.7f, paint);
+                return;
+            }
+
+            if (iconType == ICON_LIST) {
+                for (int i = 0; i < 3; i++) {
+                    float y = cy - size * 0.62f + i * size * 0.62f;
+                    canvas.drawCircle(cx - size * 0.75f, y, size * 0.08f, paint);
+                    canvas.drawLine(cx - size * 0.42f, y, cx + size * 0.9f, y, paint);
+                }
+                return;
+            }
+
+            if (iconType == ICON_COPY) {
+                float left = cx - size * 0.55f;
+                float top = cy - size * 0.82f;
+                canvas.drawRoundRect(left, top, left + size * 1.05f, top + size * 1.2f, dp(3), dp(3), paint);
+                canvas.drawRoundRect(cx - size * 0.18f, cy - size * 0.38f, cx + size * 0.88f, cy + size * 0.82f, dp(3), dp(3), paint);
+                return;
+            }
+
+            if (iconType == ICON_CHECK) {
+                path.reset();
+                path.moveTo(cx - size * 0.9f, cy + size * 0.02f);
+                path.lineTo(cx - size * 0.22f, cy + size * 0.68f);
+                path.lineTo(cx + size * 0.92f, cy - size * 0.68f);
+                canvas.drawPath(path, paint);
+                return;
+            }
+
             canvas.drawCircle(cx, cy, size * 1.05f, paint);
             paint.setStyle(Paint.Style.FILL);
             canvas.drawCircle(cx, cy - size * 0.52f, size * 0.13f, paint);
             paint.setStyle(Paint.Style.STROKE);
             canvas.drawLine(cx, cy - size * 0.08f, cx, cy + size * 0.58f, paint);
+        }
+    }
+
+    private final class ShimmerView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private ValueAnimator animator;
+        private float progress = -0.35f;
+
+        ShimmerView(Context context) {
+            super(context);
+        }
+
+        void start() {
+            stop();
+            progress = -0.35f;
+            animator = ValueAnimator.ofFloat(-0.35f, 1.35f);
+            animator.setDuration(1200);
+            animator.setRepeatCount(ValueAnimator.INFINITE);
+            animator.setInterpolator(new LinearInterpolator());
+            animator.addUpdateListener(animation -> {
+                progress = (float) animation.getAnimatedValue();
+                invalidate();
+            });
+            animator.start();
+        }
+
+        void stop() {
+            if (animator != null) {
+                animator.cancel();
+                animator = null;
+            }
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float w = getWidth();
+            float h = getHeight();
+            float center = w * progress;
+            paint.setShader(new LinearGradient(
+                center - w * 0.18f,
+                0,
+                center + w * 0.18f,
+                0,
+                new int[] {0x00FFFFFF, 0x33FFFFFF, 0x00FFFFFF},
+                new float[] {0f, 0.5f, 1f},
+                Shader.TileMode.CLAMP
+            ));
+            canvas.drawRoundRect(0, 0, w, h, dp(12), dp(12), paint);
+            paint.setShader(null);
+        }
+    }
+
+    private final class BottomExportBar extends FrameLayout {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        BottomExportBar(Context context) {
+            super(context);
+            setWillNotDraw(false);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            paint.setShader(new LinearGradient(
+                0,
+                0,
+                0,
+                getHeight(),
+                new int[] {0x000F1A18, 0xFF0F1A18, 0xFF0F1A18},
+                new float[] {0f, 0.22f, 1f},
+                Shader.TileMode.CLAMP
+            ));
+            canvas.drawRect(0, 0, getWidth(), getHeight(), paint);
+            paint.setShader(null);
+            super.onDraw(canvas);
+        }
+    }
+
+    private final class SmallSpinnerView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final int color;
+        private ValueAnimator animator;
+        private float rotation = 0f;
+
+        SmallSpinnerView(Context context, int color) {
+            super(context);
+            this.color = color;
+        }
+
+        void start() {
+            stop();
+            animator = ValueAnimator.ofFloat(0f, 360f);
+            animator.setDuration(900);
+            animator.setRepeatCount(ValueAnimator.INFINITE);
+            animator.setInterpolator(new LinearInterpolator());
+            animator.addUpdateListener(animation -> {
+                rotation = (float) animation.getAnimatedValue();
+                invalidate();
+            });
+            animator.start();
+        }
+
+        void stop() {
+            if (animator != null) {
+                animator.cancel();
+                animator = null;
+            }
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            stop();
+            super.onDetachedFromWindow();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float size = Math.min(getWidth(), getHeight()) - dp(3);
+            float left = (getWidth() - size) / 2f;
+            float top = (getHeight() - size) / 2f;
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(2));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setColor(color);
+            canvas.drawArc(left, top, left + size, top + size, rotation, 250, false, paint);
+        }
+    }
+
+    private final class MiniTrendChartView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final List<Double> xValues = new ArrayList<>();
+        private final List<Double> yValues = new ArrayList<>();
+        private PropertySpec prop;
+        private PropertyTable table;
+        private double temperature = Double.NaN;
+        private int lineColor = COLOR_PRIMARY;
+
+        MiniTrendChartView(Context context) {
+            super(context);
+            setPadding(dp(8), dp(6), dp(8), dp(6));
+        }
+
+        void setData(PropertyTable table, PropertySpec prop, double temperature, int lineColor) {
+            this.table = table;
+            this.prop = prop;
+            this.temperature = temperature;
+            this.lineColor = lineColor;
+            fillChartValues(table, prop, table.minTemperature(), table.maxTemperature(), xValues, yValues, 52);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            if (table == null || prop == null || xValues.isEmpty()) {
+                return;
+            }
+            float left = getPaddingLeft();
+            float right = getWidth() - getPaddingRight();
+            float top = getPaddingTop();
+            float bottom = getHeight() - getPaddingBottom() - dp(9);
+            if (right <= left || bottom <= top) {
+                return;
+            }
+            double minX = table.minTemperature();
+            double maxX = table.maxTemperature();
+            double minY = yValues.get(0);
+            double maxY = yValues.get(0);
+            for (double value : yValues) {
+                minY = Math.min(minY, value);
+                maxY = Math.max(maxY, value);
+            }
+            if (Math.abs(maxY - minY) < 1e-12) {
+                maxY += 1.0;
+                minY -= 1.0;
+            }
+
+            path.reset();
+            for (int i = 0; i < xValues.size(); i++) {
+                float px = (float) (left + (xValues.get(i) - minX) / (maxX - minX) * (right - left));
+                float py = (float) (bottom - (yValues.get(i) - minY) / (maxY - minY) * (bottom - top));
+                if (i == 0) {
+                    path.moveTo(px, py);
+                } else {
+                    path.lineTo(px, py);
+                }
+            }
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(1.5f));
+            paint.setColor(lineColor);
+            paint.setPathEffect(null);
+            canvas.drawPath(path, paint);
+
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextSize(dp(9));
+            paint.setTypeface(Typeface.MONOSPACE);
+            paint.setColor(0xFF3A5A52);
+            canvas.drawText(String.format(Locale.US, "%.0f", minX), left, getHeight() - dp(2), paint);
+            canvas.drawText(String.format(Locale.US, "%.0f C", maxX), right - dp(34), getHeight() - dp(2), paint);
+
+            if (!Double.isNaN(temperature) && temperature >= minX && temperature <= maxX) {
+                double current = table.valueFor(prop.column, temperature);
+                float px = (float) (left + (temperature - minX) / (maxX - minX) * (right - left));
+                float py = (float) (bottom - (current - minY) / (maxY - minY) * (bottom - top));
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(Math.max(1f, dp(0.5f)));
+                paint.setColor(withAlpha(lineColor, 102));
+                paint.setPathEffect(new DashPathEffect(new float[] {dp(2), dp(2)}, 0));
+                canvas.drawLine(px, py, px, bottom, paint);
+                paint.setPathEffect(null);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(lineColor);
+                canvas.drawCircle(px, py, dp(4), paint);
+                paint.setTypeface(Typeface.MONOSPACE);
+                paint.setTextSize(dp(8));
+                String label = String.format(Locale.US, "%.3g", current);
+                float labelX = Math.min(px + dp(4), right - dp(44));
+                canvas.drawText(label, labelX, Math.max(top + dp(8), py - dp(4)), paint);
+            }
         }
     }
 
@@ -2316,6 +4342,7 @@ public class MainActivity extends Activity {
     }
 
     private static final class CalculationRecord {
+        final String dateKey;
         final String time;
         final String title;
         final List<String> lines;
@@ -2323,7 +4350,8 @@ public class MainActivity extends Activity {
         final String tableKey;
         final double temperature;
 
-        CalculationRecord(String time, String title, List<String> lines, List<ResultEntry> entries, String tableKey, double temperature) {
+        CalculationRecord(String dateKey, String time, String title, List<String> lines, List<ResultEntry> entries, String tableKey, double temperature) {
+            this.dateKey = dateKey == null || dateKey.isEmpty() ? "" : dateKey;
             this.time = time;
             this.title = title;
             this.lines = lines;
