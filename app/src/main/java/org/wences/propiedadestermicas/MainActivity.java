@@ -3,6 +3,7 @@ package org.wences.propiedadestermicas;
 import android.app.Activity;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -31,6 +32,7 @@ import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.AnimationSet;
@@ -99,6 +101,8 @@ public class MainActivity extends Activity {
     private static final int ICON_LIST = 18;
     private static final int ICON_COPY = 19;
     private static final int ICON_CHECK = 20;
+    private static final int ICON_CPU = 21;
+    private static final int ICON_CHEVRON = 22;
     private static final int REQUEST_CREATE_PDF = 701;
     private static final String HISTORY_PREFS = "thermowences_history";
     private static final String HISTORY_KEY = "records";
@@ -196,6 +200,7 @@ public class MainActivity extends Activity {
     private TextView exportPdfText;
     private NavIconView exportPdfIcon;
     private SmallSpinnerView exportPdfSpinner;
+    private int systemNavInsetBottom = 0;
     private LinearLayout historyLayout;
     private LinearLayout historyStickyHeader;
     private TextView historyStickyText;
@@ -214,6 +219,9 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Window window = getWindow();
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false);
+        }
         window.setStatusBarColor(COLOR_BG);
         window.setNavigationBarColor(0xFF0B0E10);
         loadTables();
@@ -804,7 +812,7 @@ public class MainActivity extends Activity {
 
     private void setResultsPagePadding() {
         if (pageLayout != null) {
-            pageLayout.setPadding(dp(16), dp(172), dp(16), dp(132));
+            pageLayout.setPadding(dp(16), dp(172), dp(16), dp(132) + systemNavInsetBottom);
         }
     }
 
@@ -906,7 +914,12 @@ public class MainActivity extends Activity {
             exportPdfSpinner = null;
         }
         exportPdfBar = new BottomExportBar(this);
-        exportPdfBar.setPadding(dp(12), dp(16), dp(12), dp(18));
+        exportPdfBar.setPadding(dp(12), dp(16), dp(12), dp(12) + systemNavInsetBottom);
+        exportPdfBar.setOnApplyWindowInsetsListener((view, insets) -> {
+            int bottom = insets == null ? 0 : insets.getSystemWindowInsetBottom();
+            applyResultsBottomInset(bottom);
+            return insets;
+        });
 
         LinearLayout button = new LinearLayout(this);
         exportPdfButtonView = button;
@@ -947,10 +960,30 @@ public class MainActivity extends Activity {
 
         FrameLayout.LayoutParams barParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
-            dp(92)
+            dp(92) + systemNavInsetBottom
         );
         barParams.gravity = Gravity.BOTTOM;
         rootLayout.addView(exportPdfBar, barParams);
+        if (Build.VERSION.SDK_INT >= 20) {
+            exportPdfBar.requestApplyInsets();
+        }
+    }
+
+    private void applyResultsBottomInset(int bottomInset) {
+        int normalized = Math.max(0, bottomInset);
+        if (normalized == systemNavInsetBottom && exportPdfBar != null) {
+            return;
+        }
+        systemNavInsetBottom = normalized;
+        setResultsPagePadding();
+        if (exportPdfBar != null) {
+            exportPdfBar.setPadding(dp(12), dp(16), dp(12), dp(12) + systemNavInsetBottom);
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) exportPdfBar.getLayoutParams();
+            if (params != null) {
+                params.height = dp(92) + systemNavInsetBottom;
+                exportPdfBar.setLayoutParams(params);
+            }
+        }
     }
 
     private void handleExportPdfPress() {
@@ -967,7 +1000,8 @@ public class MainActivity extends Activity {
             return;
         }
         if ("loading".equals(state)) {
-            exportPdfText.setText("Generando PDF...");
+            exportPdfText.setText("Generando reporte...");
+            exportPdfText.setTextSize(13);
             exportPdfIcon.setVisibility(View.GONE);
             exportPdfSpinner.setVisibility(View.VISIBLE);
             exportPdfSpinner.start();
@@ -982,6 +1016,8 @@ public class MainActivity extends Activity {
         if (exportPdfButtonView != null) {
             exportPdfButtonView.setBackground(rippleBackground(COLOR_ACCENT, 0x33000000, dp(12)));
         }
+        exportPdfText.setTextSize(14);
+        exportPdfText.setTextColor(0xFF412402);
         exportPdfText.setText("Exportar PDF");
     }
 
@@ -991,21 +1027,29 @@ public class MainActivity extends Activity {
         }
         setExportPdfState("normal");
         exportPdfText.setText("PDF listo");
+        exportPdfText.setTextColor(0xFF04342C);
         exportPdfIcon.setIconType(ICON_CHECK);
+        exportPdfIcon.setIconColor(0xFF04342C);
         if (exportPdfButtonView != null) {
-            exportPdfButtonView.setBackground(rippleBackground(COLOR_PRIMARY, 0x33000000, dp(12)));
+            LinearLayout pdfButton = exportPdfButtonView;
+            ValueAnimator color = ValueAnimator.ofObject(new ArgbEvaluator(), COLOR_ACCENT, COLOR_PRIMARY);
+            color.setDuration(200);
+            color.addUpdateListener(animation -> pdfButton.setBackground(rippleBackground((int) animation.getAnimatedValue(), 0x33000000, dp(12))));
+            color.start();
         }
         exportPdfIcon.invalidate();
         exportPdfText.postDelayed(() -> {
             if (exportPdfText != null && exportPdfIcon != null) {
+                exportPdfText.setTextColor(0xFF412402);
                 exportPdfText.setText("Exportar PDF");
                 exportPdfIcon.setIconType(ICON_REPORT);
+                exportPdfIcon.setIconColor(0xFF412402);
                 if (exportPdfButtonView != null) {
                     exportPdfButtonView.setBackground(rippleBackground(COLOR_ACCENT, 0x33000000, dp(12)));
                 }
                 exportPdfIcon.invalidate();
             }
-        }, 1400);
+        }, 2000);
     }
 
     private View resultsTopBar() {
@@ -1825,46 +1869,53 @@ public class MainActivity extends Activity {
         int trend = trendType(entry);
         int trendColor = trendColor(trend);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(12), dp(12), dp(12), dp(12));
+        card.setPadding(0, 0, 0, 0);
         card.setBackground(roundedStroke(COLOR_SURFACE, 0xFF253D37, dp(12)));
         card.setElevation(dp(2));
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView name = text(entry.label.toUpperCase(Locale.US), 10, 0xFF7FA89C, false);
+        header.setPadding(dp(10), dp(9), dp(10), dp(7));
+        TextView name = text(entry.label.toUpperCase(Locale.US), 9, 0xFF7FA89C, false);
         name.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         header.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         TextView trendBadge = text(trendLabel(trend), 9, trendColor, false);
-        trendBadge.setPadding(dp(8), dp(4), dp(8), dp(4));
-        trendBadge.setBackground(rounded(0xFF1D4A3C, dp(6)));
+        trendBadge.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        trendBadge.setPadding(dp(7), dp(2), dp(7), dp(2));
+        trendBadge.setBackground(rounded(0xFF1D4A3C, dp(5)));
         header.addView(trendBadge, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         card.addView(header, compactWrap());
+        card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
 
         LinearLayout valueRow = new LinearLayout(this);
         valueRow.setOrientation(LinearLayout.HORIZONTAL);
-        valueRow.setGravity(Gravity.BOTTOM);
-        TextView value = text(valueOnly(entry), 20, COLOR_PRIMARY, false);
-        value.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        valueRow.setGravity(Gravity.CENTER_VERTICAL);
+        valueRow.setPadding(dp(10), dp(8), dp(10), dp(8));
+        TextView symbol = text(mathSymbol(entry), 20, COLOR_PRIMARY, false);
+        symbol.setTypeface(Typeface.create("serif", Typeface.ITALIC));
+        valueRow.addView(symbol, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        TextView value = text(" " + valueOnly(entry), 17, COLOR_PRIMARY, false);
+        value.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.BOLD));
         valueRow.addView(value, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        if (!entry.unit.isEmpty()) {
-            TextView unit = text(" " + entry.unit, 12, 0xFF7FA89C, false);
+        String unitBadge = unitBadge(entry);
+        if (!unitBadge.isEmpty()) {
+            TextView unit = text(" " + unitBadge, 11, 0xFF7FA89C, false);
             valueRow.addView(unit, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         }
-        card.addView(valueRow, matchWrap(0, dp(7), 0, dp(8)));
+        card.addView(valueRow, compactWrap());
         card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
-        card.addView(formulaBlock(entry), matchWrap(0, dp(8), 0, dp(8)));
+        card.addView(formulaBlock(entry), compactWrap());
         card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
-        card.addView(descriptionBlock(entry.explanation), matchWrap(0, dp(8), 0, dp(8)));
+        card.addView(descriptionBlock(entry.explanation), compactWrap());
         card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
 
         PropertyTable table = tables.get(tableKey);
         PropertySpec prop = propertyForEntry(entry);
         if (table != null && prop != null && !Double.isNaN(entry.temperature)) {
             MiniTrendChartView miniChart = new MiniTrendChartView(this);
-            miniChart.setBackground(rounded(0xFF1E2F2B, dp(6)));
             miniChart.setData(table, prop, entry.temperature, trendColor);
-            card.addView(miniChart, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)));
+            card.addView(miniChart, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(40)));
         }
         return card;
     }
@@ -1887,40 +1938,7 @@ public class MainActivity extends Activity {
     }
 
     private View formulaBlock(ResultEntry entry) {
-        LinearLayout shell = new LinearLayout(this);
-        shell.setOrientation(LinearLayout.HORIZONTAL);
-        shell.setBackground(formulaBackground());
-
-        View accent = new View(this);
-        accent.setBackgroundColor(0xFF0F6E56);
-        shell.addView(accent, new LinearLayout.LayoutParams(dp(3), LinearLayout.LayoutParams.MATCH_PARENT));
-
-        FrameLayout box = new FrameLayout(this);
-
-        TextView formula = text(formulaText(entry), 11, 0xFF9FE1CB, false);
-        formula.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
-        formula.setLineSpacing(0, 1.18f);
-        formula.setPadding(dp(10), dp(6), dp(34), dp(6));
-        box.addView(formula, compactFrame());
-
-        NavIconView copy = new NavIconView(this, ICON_COPY, 0xFF3A5A52);
-        copy.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(18)));
-        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(34), dp(34));
-        iconParams.gravity = Gravity.TOP | Gravity.END;
-        box.addView(copy, iconParams);
-        copy.setOnClickListener(view -> {
-            copyFormula(entry);
-            copy.setIconType(ICON_CHECK);
-            copy.setIconColor(COLOR_PRIMARY);
-            copy.invalidate();
-            copy.postDelayed(() -> {
-                copy.setIconType(ICON_COPY);
-                copy.setIconColor(0xFF3A5A52);
-                copy.invalidate();
-            }, 1500);
-        });
-        shell.addView(box, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        return shell;
+        return new FormulaBlockView(this, entry);
     }
 
     private GradientDrawable formulaBackground() {
@@ -1938,7 +1956,8 @@ public class MainActivity extends Activity {
     private View descriptionBlock(String value) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        TextView description = text(value, 11, 0xFF7FA89C, false);
+        box.setPadding(dp(10), dp(7), dp(10), dp(7));
+        TextView description = text(value, 10, 0xFF7FA89C, false);
         description.setLineSpacing(0, 1.18f);
         description.setMaxLines(2);
         description.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -1968,10 +1987,73 @@ public class MainActivity extends Activity {
         return new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
     }
 
+    private String mathSymbol(ResultEntry entry) {
+        return formulaMeta(entry).symbol;
+    }
+
+    private String unitBadge(ResultEntry entry) {
+        String label = entry.label == null ? "" : entry.label.toLowerCase(Locale.US);
+        String unit = entry.unit == null ? "" : entry.unit;
+        if (label.contains("expansi")) {
+            return "K⁻¹";
+        }
+        if (label.contains("densidad")) {
+            return "kg/m³";
+        }
+        if (label.contains("calor")) {
+            return "kJ/kg·K";
+        }
+        if (label.contains("conductividad")) {
+            return "W/m·K";
+        }
+        if (label.contains("difusividad")) {
+            return "×10⁻⁶ m²/s";
+        }
+        if (label.contains("viscosidad absoluta")) {
+            return "×10⁻⁶ Pa·s";
+        }
+        if (label.contains("viscosidad cin")) {
+            return "×10⁻⁶ m²/s";
+        }
+        if (label.contains("prandtl")) {
+            return "adim.";
+        }
+        return normalizeUnit(unit);
+    }
+
+    private String normalizeUnit(String unit) {
+        if (unit == null || unit.isEmpty()) {
+            return "";
+        }
+        return unit
+            .replace("x 10^-3 ", "×10⁻³ ")
+            .replace("x 10-6 ", "×10⁻⁶ ")
+            .replace("x 10^-6 ", "×10⁻⁶ ")
+            .replace("m3", "m³")
+            .replace("m2", "m²")
+            .replace("K-1", "K⁻¹")
+            .replace("K^-1", "K⁻¹")
+            .replace("Pa s", "Pa·s")
+            .replace("m K", "m·K")
+            .replace("kg K", "kg·K");
+    }
+
+    private String evaluationValue(ResultEntry entry) {
+        String unit = entry.unit == null ? "" : entry.unit;
+        String value = valueOnly(entry);
+        if (unit.startsWith("x 10^-3")) {
+            return value + " ×10⁻³";
+        }
+        if (unit.startsWith("x 10-6") || unit.startsWith("x 10^-6")) {
+            return value + " ×10⁻⁶";
+        }
+        return value;
+    }
+
     private String formulaText(ResultEntry entry) {
-        String expression = formulaExpression(entry.label);
-        String eval = String.format(Locale.US, "@ %.2f C -> %s", entry.temperature, entry.value);
-        return expression + "\nmetodo: spline cubica interpolada\n" + eval;
+        FormulaMeta meta = formulaMeta(entry);
+        String eval = String.format(Locale.US, "@ %.2f°C = %s %s", entry.temperature, evaluationValue(entry), unitBadge(entry));
+        return meta.copyExpression + "\nMétodo: spline cúbica interpolada\n" + eval.trim();
     }
 
     private String formulaExpression(String label) {
@@ -2016,8 +2098,98 @@ public class MainActivity extends Activity {
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard != null) {
             clipboard.setPrimaryClip(ClipData.newPlainText("formula", formulaText(entry)));
-            showMessage("Formula copiada.");
         }
+    }
+
+    private void showVariableTooltip(View anchor, ResultEntry entry, String token) {
+        LinearLayout popupContent = new LinearLayout(this);
+        popupContent.setOrientation(LinearLayout.VERTICAL);
+        popupContent.setPadding(dp(9), dp(6), dp(9), dp(6));
+        popupContent.setBackground(roundedStroke(0xFF132320, 0xFF1D4A3C, dp(6)));
+
+        String normalized = token.replace("d", "");
+        TextView title = text(token + " — " + variableName(normalized), 11, COLOR_TEXT, false);
+        popupContent.addView(title, compactWrap());
+        TextView value = text(variableValue(entry, normalized), 11, COLOR_PRIMARY, false);
+        value.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+        popupContent.addView(value, matchWrap(0, dp(2), 0, 0));
+        popupContent.addView(text("unidad: " + variableUnit(entry, normalized), 10, 0xFF7FA89C, false), matchWrap(0, dp(2), 0, 0));
+
+        PopupWindow popup = new PopupWindow(popupContent, Math.min(dp(200), getResources().getDisplayMetrics().widthPixels - dp(48)), LinearLayout.LayoutParams.WRAP_CONTENT, true);
+        popup.setOutsideTouchable(true);
+        popup.setElevation(0f);
+        popup.showAsDropDown(anchor, 0, dp(4));
+        anchor.postDelayed(popup::dismiss, 3000);
+    }
+
+    private String variableName(String token) {
+        if ("β".equals(token)) return "coeficiente de expansión volumétrica";
+        if ("ρ".equals(token)) return "densidad";
+        if ("cₚ".equals(token) || "cp".equals(token)) return "calor específico";
+        if ("k".equals(token)) return "conductividad térmica";
+        if ("α".equals(token)) return "difusividad térmica";
+        if ("μ".equals(token)) return "viscosidad absoluta";
+        if ("ν".equals(token)) return "viscosidad cinemática";
+        if ("Pr".equals(token)) return "número de Prandtl";
+        if ("m".equals(token)) return "masa";
+        if ("V".equals(token)) return "volumen";
+        if ("T".equals(token)) return "temperatura";
+        if ("u".equals(token)) return "energía interna o velocidad";
+        if ("q".equals(token)) return "calor transferido";
+        if ("l".equals(token)) return "longitud";
+        if ("A".equals(token)) return "área";
+        if ("τ".equals(token)) return "esfuerzo cortante";
+        if ("y".equals(token)) return "coordenada normal";
+        return "variable de ecuación";
+    }
+
+    private String variableValue(ResultEntry entry, String token) {
+        if (mathSymbol(entry).equals(token)) {
+            return "= " + evaluationValue(entry);
+        }
+        if ("T".equals(token)) {
+            return String.format(Locale.US, "= %.2f", entry.temperature);
+        }
+        return "= variable del modelo";
+    }
+
+    private String variableUnit(ResultEntry entry, String token) {
+        if (mathSymbol(entry).equals(token)) {
+            return unitBadge(entry);
+        }
+        if ("T".equals(token)) {
+            return "°C";
+        }
+        return "según definición";
+    }
+
+    private FormulaMeta formulaMeta(ResultEntry entry) {
+        String label = entry == null || entry.label == null ? "" : entry.label.toLowerCase(Locale.US);
+        if (label.contains("expansi")) {
+            return new FormulaMeta("β", "β = (1/V)·(dV/dT)", "Derivada de la definición termodinámica del cambio relativo de volumen con la temperatura.", "[β] = K⁻¹", "1", "V", "dV", "dT");
+        }
+        if (label.contains("densidad")) {
+            return new FormulaMeta("ρ", "ρ = m/V", "Relación directa entre masa y volumen ocupado por el fluido.", "[ρ] = kg · m⁻³", "m", "V");
+        }
+        if (label.contains("calor")) {
+            return new FormulaMeta("cₚ", "cₚ = du/(dm·dT)", "Energía requerida para cambiar la temperatura de una masa diferencial.", "[cₚ] = kJ · kg⁻¹ · K⁻¹", "du", "dm", "dT");
+        }
+        if (label.contains("conductividad")) {
+            return new FormulaMeta("k", "k = (q·l)/(A·dT)", "Forma de Fourier para conducción térmica en una dirección.", "[k] = W · m⁻¹ · K⁻¹", "q", "l", "A", "dT");
+        }
+        if (label.contains("difusividad")) {
+            return new FormulaMeta("α", "α = k/(ρ·cₚ)", "Relación entre conducción térmica y capacidad de almacenamiento de energía.", "[α] = m² · s⁻¹", "k", "ρ", "cₚ");
+        }
+        if (label.contains("viscosidad cin")) {
+            return new FormulaMeta("ν", "ν = μ/ρ", "Viscosidad dinámica normalizada por la densidad del fluido.", "[ν] = m² · s⁻¹", "μ", "ρ");
+        }
+        if (label.contains("viscosidad")) {
+            return new FormulaMeta("μ", "μ = τ·(du/dy)", "Relación entre esfuerzo cortante y gradiente de velocidad.", "[μ] = Pa · s", "τ", "du", "dy");
+        }
+        if (label.contains("prandtl")) {
+            return new FormulaMeta("Pr", "Pr = (μ·cₚ)/k", "Número adimensional que compara difusión de momento y difusión térmica.", "[Pr] = adim.", "μ", "cₚ", "k");
+        }
+        return new FormulaMeta("f", "f = f(T)", "Propiedad interpolada como función de la temperatura consultada.", "[f] = unidad de tabla", "T");
     }
 
     private int trendType(ResultEntry entry) {
@@ -4017,6 +4189,27 @@ public class MainActivity extends Activity {
                 return;
             }
 
+            if (iconType == ICON_CPU) {
+                canvas.drawRoundRect(cx - size * 0.75f, cy - size * 0.75f, cx + size * 0.75f, cy + size * 0.75f, dp(3), dp(3), paint);
+                for (int i = -1; i <= 1; i++) {
+                    float offset = i * size * 0.45f;
+                    canvas.drawLine(cx - size * 1.05f, cy + offset, cx - size * 0.75f, cy + offset, paint);
+                    canvas.drawLine(cx + size * 0.75f, cy + offset, cx + size * 1.05f, cy + offset, paint);
+                    canvas.drawLine(cx + offset, cy - size * 1.05f, cx + offset, cy - size * 0.75f, paint);
+                    canvas.drawLine(cx + offset, cy + size * 0.75f, cx + offset, cy + size * 1.05f, paint);
+                }
+                return;
+            }
+
+            if (iconType == ICON_CHEVRON) {
+                path.reset();
+                path.moveTo(cx - size * 0.72f, cy - size * 0.24f);
+                path.lineTo(cx, cy + size * 0.48f);
+                path.lineTo(cx + size * 0.72f, cy - size * 0.24f);
+                canvas.drawPath(path, paint);
+                return;
+            }
+
             if (iconType == ICON_COPY) {
                 float left = cx - size * 0.55f;
                 float top = cy - size * 0.82f;
@@ -4039,6 +4232,275 @@ public class MainActivity extends Activity {
             canvas.drawCircle(cx, cy - size * 0.52f, size * 0.13f, paint);
             paint.setStyle(Paint.Style.STROKE);
             canvas.drawLine(cx, cy - size * 0.08f, cx, cy + size * 0.58f, paint);
+        }
+    }
+
+    private final class FormulaBlockView extends LinearLayout {
+        private final ResultEntry entry;
+        private final View accent;
+        private final LinearLayout expandedRows;
+        private final NavIconView copyIcon;
+        private final NavIconView chevronIcon;
+        private boolean expanded = false;
+
+        FormulaBlockView(Context context, ResultEntry entry) {
+            super(context);
+            this.entry = entry;
+            setOrientation(HORIZONTAL);
+            setBackground(rounded(0xFF1E2F2B, 0));
+
+            accent = new View(context);
+            accent.setBackgroundColor(0xFF0F6E56);
+            addView(accent, new LinearLayout.LayoutParams(dp(3), LinearLayout.LayoutParams.MATCH_PARENT));
+
+            FrameLayout frame = new FrameLayout(context);
+            LinearLayout content = new LinearLayout(context);
+            content.setOrientation(VERTICAL);
+            content.setPadding(dp(10), dp(8), dp(44), dp(8));
+            content.setOnClickListener(view -> toggleExpanded());
+
+            MathEquationView equation = new MathEquationView(context, entry);
+            content.addView(equation, compactWrap());
+
+            LinearLayout method = new LinearLayout(context);
+            method.setGravity(Gravity.CENTER_VERTICAL);
+            method.setOrientation(HORIZONTAL);
+            method.addView(new NavIconView(context, ICON_CPU, 0xFF3A5A52), new LinearLayout.LayoutParams(dp(14), dp(14)));
+            TextView methodText = text("método: spline cúbica interpolada", 9, 0xFF3A5A52, false);
+            method.addView(methodText, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            content.addView(method, matchWrap(0, dp(4), 0, 0));
+
+            LinearLayout eval = new LinearLayout(context);
+            eval.setGravity(Gravity.CENTER_VERTICAL);
+            eval.setOrientation(HORIZONTAL);
+            TextView evalText = text(String.format(Locale.US, "@ %.2f °C → %s", entry.temperature, evaluationValue(entry)), 10, COLOR_PRIMARY, false);
+            evalText.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+            eval.addView(evalText, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            TextView badge = text(unitBadge(entry), 9, 0xFF7FA89C, false);
+            badge.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+            badge.setPadding(dp(4), dp(1), dp(4), dp(1));
+            badge.setBackground(rounded(0xFF1D4A3C, dp(3)));
+            LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            badgeParams.leftMargin = dp(3);
+            eval.addView(badge, badgeParams);
+            content.addView(eval, matchWrap(0, dp(4), 0, 0));
+
+            expandedRows = new LinearLayout(context);
+            expandedRows.setOrientation(VERTICAL);
+            expandedRows.setVisibility(GONE);
+            TextView deduction = text(formulaMeta(entry).deduction, 10, 0xFF7FA89C, false);
+            deduction.setLineSpacing(0, 1.15f);
+            expandedRows.addView(deduction, matchWrap(0, dp(6), 0, 0));
+            TextView dimension = text(formulaMeta(entry).dimension, 11, 0xFF5DCAA5, false);
+            dimension.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+            expandedRows.addView(dimension, matchWrap(0, dp(4), 0, 0));
+            content.addView(expandedRows, compactWrap());
+
+            frame.addView(content, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+            copyIcon = new NavIconView(context, ICON_COPY, 0xFF3A5A52);
+            copyIcon.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(18)));
+            copyIcon.setOnClickListener(view -> copyFormulaWithFeedback());
+            FrameLayout.LayoutParams copyParams = new FrameLayout.LayoutParams(dp(36), dp(36));
+            copyParams.gravity = Gravity.TOP | Gravity.END;
+            copyParams.topMargin = dp(2);
+            copyParams.rightMargin = dp(33);
+            frame.addView(copyIcon, copyParams);
+
+            chevronIcon = new NavIconView(context, ICON_CHEVRON, 0xFF3A5A52);
+            chevronIcon.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(18)));
+            chevronIcon.setOnClickListener(view -> toggleExpanded());
+            FrameLayout.LayoutParams chevronParams = new FrameLayout.LayoutParams(dp(36), dp(36));
+            chevronParams.gravity = Gravity.TOP | Gravity.END;
+            chevronParams.topMargin = dp(2);
+            chevronParams.rightMargin = dp(2);
+            frame.addView(chevronIcon, chevronParams);
+
+            addView(frame, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        }
+
+        private void copyFormulaWithFeedback() {
+            performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+            copyFormula(entry);
+            copyIcon.setAlpha(0f);
+            copyIcon.setIconType(ICON_CHECK);
+            copyIcon.setIconColor(COLOR_PRIMARY);
+            copyIcon.invalidate();
+            copyIcon.animate().alpha(1f).setDuration(100).start();
+            copyIcon.postDelayed(() -> {
+                copyIcon.animate().alpha(expanded ? 0f : 1f).setDuration(120).withEndAction(() -> {
+                    copyIcon.setIconType(ICON_COPY);
+                    copyIcon.setIconColor(0xFF3A5A52);
+                    copyIcon.invalidate();
+                }).start();
+            }, 1500);
+        }
+
+        private void toggleExpanded() {
+            expanded = !expanded;
+            animateExpandedRows(expanded);
+            chevronIcon.animate().rotation(expanded ? 180f : 0f).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
+            copyIcon.animate().alpha(expanded ? 0f : 1f).setDuration(160).start();
+            ValueAnimator color = ValueAnimator.ofObject(new ArgbEvaluator(), expanded ? 0xFF0F6E56 : COLOR_PRIMARY, expanded ? COLOR_PRIMARY : 0xFF0F6E56);
+            color.setDuration(200);
+            color.addUpdateListener(animation -> accent.setBackgroundColor((int) animation.getAnimatedValue()));
+            color.start();
+        }
+
+        private void animateExpandedRows(boolean show) {
+            if (show) {
+                expandedRows.setVisibility(VISIBLE);
+                expandedRows.measure(
+                    MeasureSpec.makeMeasureSpec(getWidth(), MeasureSpec.AT_MOST),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+                );
+                int target = expandedRows.getMeasuredHeight();
+                expandedRows.getLayoutParams().height = 0;
+                expandedRows.requestLayout();
+                ValueAnimator animator = ValueAnimator.ofInt(0, target);
+                animator.setDuration(200);
+                animator.setInterpolator(new DecelerateInterpolator());
+                animator.addUpdateListener(animation -> {
+                    expandedRows.getLayoutParams().height = (int) animation.getAnimatedValue();
+                    expandedRows.requestLayout();
+                });
+                animator.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        expandedRows.getLayoutParams().height = LinearLayout.LayoutParams.WRAP_CONTENT;
+                        expandedRows.requestLayout();
+                    }
+                });
+                animator.start();
+                return;
+            }
+            int start = expandedRows.getHeight();
+            ValueAnimator animator = ValueAnimator.ofInt(start, 0);
+            animator.setDuration(200);
+            animator.setInterpolator(new DecelerateInterpolator());
+            animator.addUpdateListener(animation -> {
+                expandedRows.getLayoutParams().height = (int) animation.getAnimatedValue();
+                expandedRows.requestLayout();
+            });
+            animator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    expandedRows.setVisibility(GONE);
+                    expandedRows.getLayoutParams().height = LinearLayout.LayoutParams.WRAP_CONTENT;
+                    expandedRows.requestLayout();
+                }
+            });
+            animator.start();
+        }
+    }
+
+    private final class MathEquationView extends LinearLayout {
+        private final ResultEntry entry;
+
+        MathEquationView(Context context, ResultEntry entry) {
+            super(context);
+            this.entry = entry;
+            setOrientation(HORIZONTAL);
+            setGravity(Gravity.CENTER_VERTICAL);
+            setPadding(0, 0, 0, 0);
+            buildEquation();
+        }
+
+        private void buildEquation() {
+            FormulaMeta meta = formulaMeta(entry);
+            String symbol = meta.symbol;
+            addVariable(symbol, true);
+            addOperator(" = ");
+            if ("β".equals(symbol)) {
+                addFraction(constant("1"), variable("V"));
+                addOperator(" · ");
+                addFraction(variable("dV"), variable("dT"));
+            } else if ("ρ".equals(symbol)) {
+                addFraction(variable("m"), variable("V"));
+            } else if ("cₚ".equals(symbol)) {
+                addFraction(variable("du"), row(variable("dm"), operator("·"), variable("dT")));
+            } else if ("k".equals(symbol)) {
+                addFraction(row(variable("q"), operator("·"), variable("l")), row(variable("A"), operator("·"), variable("dT")));
+            } else if ("α".equals(symbol)) {
+                addFraction(variable("k"), row(variable("ρ"), operator("·"), variable("cₚ")));
+            } else if ("μ".equals(symbol)) {
+                addVariable("τ", false);
+                addOperator(" · ");
+                addFraction(variable("du"), variable("dy"));
+            } else if ("ν".equals(symbol)) {
+                addFraction(variable("μ"), variable("ρ"));
+            } else if ("Pr".equals(symbol)) {
+                addFraction(row(variable("μ"), operator("·"), variable("cₚ")), variable("k"));
+            } else {
+                addVariable("f", true);
+                addOperator("(T)");
+            }
+        }
+
+        private void addVariable(String value, boolean dependent) {
+            addView(variable(value, dependent));
+        }
+
+        private void addOperator(String value) {
+            addView(operator(value));
+        }
+
+        private void addFraction(View numerator, View denominator) {
+            addView(new FractionView(getContext(), numerator, denominator), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+
+        private TextView variable(String value) {
+            return variable(value, false);
+        }
+
+        private TextView variable(String value, boolean dependent) {
+            TextView view = text(value, dependent ? 16 : 13, dependent ? COLOR_PRIMARY : 0xFF9FE1CB, false);
+            view.setTypeface(Typeface.create("serif", Typeface.ITALIC));
+            view.setOnClickListener(anchor -> showVariableTooltip(anchor, entry, value));
+            return view;
+        }
+
+        private TextView operator(String value) {
+            TextView view = text(value, 14, 0xFF5DCAA5, false);
+            view.setTypeface(Typeface.create("serif", Typeface.NORMAL));
+            return view;
+        }
+
+        private TextView constant(String value) {
+            TextView view = text(value, 13, 0xFF7FA89C, false);
+            view.setTypeface(Typeface.create("serif", Typeface.NORMAL));
+            return view;
+        }
+
+        private LinearLayout row(View... views) {
+            LinearLayout row = new LinearLayout(getContext());
+            row.setOrientation(HORIZONTAL);
+            row.setGravity(Gravity.CENTER);
+            for (View view : views) {
+                row.addView(view, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
+            return row;
+        }
+    }
+
+    private final class FractionView extends LinearLayout {
+        FractionView(Context context, View numerator, View denominator) {
+            super(context);
+            setOrientation(VERTICAL);
+            setGravity(Gravity.CENTER);
+            setPadding(dp(2), 0, dp(2), 0);
+            addView(centered(numerator), compactWrap());
+            View line = new View(context);
+            line.setBackgroundColor(0xFF5DCAA5);
+            addView(line, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(1.5f))));
+            addView(centered(denominator), compactWrap());
+        }
+
+        private LinearLayout centered(View child) {
+            LinearLayout box = new LinearLayout(getContext());
+            box.setGravity(Gravity.CENTER);
+            box.addView(child, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            return box;
         }
     }
 
@@ -4239,8 +4701,8 @@ public class MainActivity extends Activity {
             paint.setTextSize(dp(9));
             paint.setTypeface(Typeface.MONOSPACE);
             paint.setColor(0xFF3A5A52);
-            canvas.drawText(String.format(Locale.US, "%.0f", minX), left, getHeight() - dp(2), paint);
-            canvas.drawText(String.format(Locale.US, "%.0f C", maxX), right - dp(34), getHeight() - dp(2), paint);
+            canvas.drawText(String.format(Locale.US, "%.0f °C", minX), left, getHeight() - dp(2), paint);
+            canvas.drawText(String.format(Locale.US, "%.0f °C", maxX), right - dp(42), getHeight() - dp(2), paint);
 
             if (!Double.isNaN(temperature) && temperature >= minX && temperature <= maxX) {
                 double current = table.valueFor(prop.column, temperature);
@@ -4252,9 +4714,13 @@ public class MainActivity extends Activity {
                 paint.setPathEffect(new DashPathEffect(new float[] {dp(2), dp(2)}, 0));
                 canvas.drawLine(px, py, px, bottom, paint);
                 paint.setPathEffect(null);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(1));
+                paint.setColor(withAlpha(lineColor, 77));
+                canvas.drawCircle(px, py, dp(5.5f), paint);
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(lineColor);
-                canvas.drawCircle(px, py, dp(4), paint);
+                canvas.drawCircle(px, py, dp(3.5f), paint);
                 paint.setTypeface(Typeface.MONOSPACE);
                 paint.setTextSize(dp(8));
                 String label = String.format(Locale.US, "%.3g", current);
@@ -4392,6 +4858,22 @@ public class MainActivity extends Activity {
             this.explanation = explanation;
             this.unit = unit == null ? "" : unit;
             this.temperature = temperature;
+        }
+    }
+
+    private static final class FormulaMeta {
+        final String symbol;
+        final String copyExpression;
+        final String deduction;
+        final String dimension;
+        final String[] variables;
+
+        FormulaMeta(String symbol, String copyExpression, String deduction, String dimension, String... variables) {
+            this.symbol = symbol;
+            this.copyExpression = copyExpression;
+            this.deduction = deduction;
+            this.dimension = dimension;
+            this.variables = variables;
         }
     }
 
