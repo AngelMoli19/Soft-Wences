@@ -1,8 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_thermowences_logo"
-        android:roundIcon="@drawable/ic_thermowences_logo"
+        android:icon="@drawable/logo_circular_dark"
+        android:roundIcon="@drawable/logo_circular_dark"
         android:label="TermoWences"
         android:theme="@style/AppTheme">
         <activity

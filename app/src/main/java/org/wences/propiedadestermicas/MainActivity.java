@@ -11,11 +11,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.DashPathEffect;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.pdf.PdfDocument;
 import android.net.Uri;
@@ -173,6 +177,10 @@ public class MainActivity extends Activity {
     private LinearLayout navDrawer;
     private View navScrim;
     private boolean navOpen = false;
+    private FrameLayout bottomNavBar;
+    private LinearLayout bottomNavRow;
+    private final List<BottomNavItemView> bottomNavItems = new ArrayList<>();
+    private int bottomNavInsetBottom = 0;
     private int currentScreen = SCREEN_MENU;
     private int selectedTableIndex = 0;
     private EditText temperatureInput;
@@ -254,24 +262,13 @@ public class MainActivity extends Activity {
 
         pageLayout = new LinearLayout(this);
         pageLayout.setOrientation(LinearLayout.VERTICAL);
-        pageLayout.setPadding(dp(16), dp(104), dp(16), dp(86));
+        pageLayout.setPadding(dp(16), dp(16), dp(16), dp(104));
         mainScrollView.addView(pageLayout);
 
         rootLayout.addView(mainScrollView, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
-
-        navBar = buildTopNavBar();
-        FrameLayout.LayoutParams navBarParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            dp(56)
-        );
-        navBarParams.gravity = Gravity.TOP;
-        navBarParams.leftMargin = dp(14);
-        navBarParams.rightMargin = dp(14);
-        navBarParams.topMargin = dp(32);
-        rootLayout.addView(navBar, navBarParams);
 
         historyStickyHeader = stickyHistoryHeaderView();
         historyStickyHeader.setVisibility(View.GONE);
@@ -280,26 +277,18 @@ public class MainActivity extends Activity {
             dp(28)
         );
         stickyParams.gravity = Gravity.TOP;
-        stickyParams.topMargin = dp(88);
+        stickyParams.topMargin = dp(16);
         stickyParams.leftMargin = dp(30);
         stickyParams.rightMargin = dp(30);
         rootLayout.addView(historyStickyHeader, stickyParams);
 
-        navScrim = new View(this);
-        navScrim.setBackgroundColor(0x80000000);
-        navScrim.setVisibility(View.GONE);
-        navScrim.setOnClickListener(view -> closeNavDrawer());
-        rootLayout.addView(navScrim, new FrameLayout.LayoutParams(
+        bottomNavBar = buildBottomNavBar();
+        FrameLayout.LayoutParams bottomParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        ));
-
-        navDrawer = buildNavDrawer();
-        navDrawer.setVisibility(View.GONE);
-        navDrawer.setTranslationX(-dp(260));
-        FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(dp(260), FrameLayout.LayoutParams.MATCH_PARENT);
-        navParams.gravity = Gravity.START | Gravity.TOP;
-        rootLayout.addView(navDrawer, navParams);
+            dp(84)
+        );
+        bottomParams.gravity = Gravity.BOTTOM;
+        rootLayout.addView(bottomNavBar, bottomParams);
 
         setContentView(rootLayout);
         showMainMenu();
@@ -307,8 +296,8 @@ public class MainActivity extends Activity {
 
     private void showMainMenu() {
         currentScreen = SCREEN_MENU;
-        closeNavDrawer();
         configureTopNav("Inicio", false, true);
+        updateBottomNav();
         setResultsChromeVisible(false);
         setDefaultPagePadding();
         pendingRevealViews.clear();
@@ -351,8 +340,108 @@ public class MainActivity extends Activity {
         return bar;
     }
 
+    private FrameLayout buildBottomNavBar() {
+        BottomNavShell shell = new BottomNavShell(this);
+        shell.setPadding(0, dp(20), 0, 0);
+        shell.setOnApplyWindowInsetsListener((view, insets) -> {
+            bottomNavInsetBottom = insets == null ? 0 : Math.max(0, insets.getSystemWindowInsetBottom());
+            view.setPadding(0, dp(20), 0, 0);
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) view.getLayoutParams();
+            if (params != null) {
+                params.height = dp(84) + bottomNavInsetBottom;
+                view.setLayoutParams(params);
+            }
+            updateBottomNavContentPadding();
+            setPagePaddingForCurrentScreen();
+            return insets;
+        });
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setGravity(Gravity.BOTTOM);
+        container.setPadding(dp(8), 0, dp(8), bottomNavInsetBottom);
+        container.setBackground(bottomNavBackground());
+
+        bottomNavRow = new LinearLayout(this);
+        bottomNavRow.setOrientation(LinearLayout.HORIZONTAL);
+        bottomNavRow.setGravity(Gravity.CENTER);
+        bottomNavRow.addView(bottomNavItem(ICON_HOME, "Inicio", SCREEN_MENU), new LinearLayout.LayoutParams(0, dp(64), 1));
+        bottomNavRow.addView(bottomNavItem(ICON_CURVE, "Calcular", SCREEN_CALCULATOR), new LinearLayout.LayoutParams(0, dp(64), 1));
+        bottomNavRow.addView(bottomNavItem(ICON_HISTORY, "Historial", SCREEN_HISTORY), new LinearLayout.LayoutParams(0, dp(64), 1));
+        bottomNavRow.addView(bottomNavItem(ICON_INFO, "Acerca de", SCREEN_ABOUT), new LinearLayout.LayoutParams(0, dp(64), 1));
+        container.addView(bottomNavRow, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(64)));
+
+        FrameLayout.LayoutParams containerParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(64) + bottomNavInsetBottom
+        );
+        containerParams.gravity = Gravity.BOTTOM;
+        shell.addView(container, containerParams);
+        if (Build.VERSION.SDK_INT >= 20) {
+            shell.post(shell::requestApplyInsets);
+        }
+        return shell;
+    }
+
+    private BottomNavItemView bottomNavItem(int iconType, String label, int targetScreen) {
+        BottomNavItemView item = new BottomNavItemView(this, iconType, label, targetScreen);
+        bottomNavItems.add(item);
+        item.setOnClickListener(view -> {
+            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            if (targetScreen == SCREEN_MENU) {
+                showMainMenu();
+            } else if (targetScreen == SCREEN_CALCULATOR) {
+                showCalculatorScreen();
+            } else if (targetScreen == SCREEN_HISTORY) {
+                showHistoryScreen();
+            } else {
+                showAboutScreen();
+            }
+        });
+        return item;
+    }
+
+    private void updateBottomNavContentPadding() {
+        if (bottomNavBar == null || bottomNavBar.getChildCount() == 0) {
+            return;
+        }
+        View container = bottomNavBar.getChildAt(0);
+        container.setPadding(dp(8), 0, dp(8), bottomNavInsetBottom);
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) container.getLayoutParams();
+        if (params != null) {
+            params.height = dp(64) + bottomNavInsetBottom;
+            container.setLayoutParams(params);
+        }
+        if (exportPdfBar != null) {
+            FrameLayout.LayoutParams exportParams = (FrameLayout.LayoutParams) exportPdfBar.getLayoutParams();
+            if (exportParams != null) {
+                exportParams.bottomMargin = dp(64) + bottomNavInsetBottom;
+                exportPdfBar.setLayoutParams(exportParams);
+            }
+        }
+    }
+
+    private void updateBottomNav() {
+        int activeScreen = currentScreen == SCREEN_RESULTS ? SCREEN_CALCULATOR : currentScreen;
+        for (BottomNavItemView item : bottomNavItems) {
+            item.setSelectedState(item.targetScreen == activeScreen, history.size());
+        }
+    }
+
+    private GradientDrawable bottomNavBackground() {
+        GradientDrawable drawable = rounded(0xFF0A1E1A, 0);
+        drawable.setCornerRadii(new float[] {
+            dp(20), dp(20),
+            dp(20), dp(20),
+            0, 0,
+            0, 0
+        });
+        drawable.setStroke(dp(1), 0xFF1D3530);
+        return drawable;
+    }
+
     private void configureTopNav(String title, boolean resultsMode, boolean scrollHide) {
-        enableNavScrollHide = scrollHide && !resultsMode;
+        enableNavScrollHide = false;
         if (historyStickyHeader != null && currentScreen != SCREEN_HISTORY) {
             historyStickyHeader.setVisibility(View.GONE);
         }
@@ -362,6 +451,7 @@ public class MainActivity extends Activity {
         }
         lastScrollY = 0;
         if (navBar != null) {
+            navBar.setVisibility(View.GONE);
             navBar.animate().cancel();
             navBar.setTranslationY(0f);
             navBar.removeAllViews();
@@ -438,10 +528,11 @@ public class MainActivity extends Activity {
     }
 
     private View navLogoView() {
-        TextView logo = text("QJH", 9, 0xFF04342C, false);
-        logo.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        logo.setGravity(Gravity.CENTER);
-        logo.setBackground(rounded(0xFF1D9E75, dp(8)));
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setAdjustViewBounds(true);
+        logo.setContentDescription("Logo TermoWences");
         return logo;
     }
 
@@ -466,7 +557,8 @@ public class MainActivity extends Activity {
         bar.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         ImageView logo = new ImageView(this);
-        logo.setImageResource(getResources().getIdentifier("ic_thermowences_logo", "drawable", getPackageName()));
+        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         bar.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
         animateScaleIn(logo, 120);
         return bar;
@@ -742,8 +834,8 @@ public class MainActivity extends Activity {
 
     private void showCalculatorScreen() {
         currentScreen = SCREEN_CALCULATOR;
-        closeNavDrawer();
         configureTopNav("Calcular", false, false);
+        updateBottomNav();
         setResultsChromeVisible(false);
         setDefaultPagePadding();
         pageLayout.removeAllViews();
@@ -761,8 +853,8 @@ public class MainActivity extends Activity {
 
     private void showHistoryScreen() {
         currentScreen = SCREEN_HISTORY;
-        closeNavDrawer();
         configureTopNav("Historial", false, true);
+        updateBottomNav();
         setResultsChromeVisible(false);
         setDefaultPagePadding();
         pageLayout.removeAllViews();
@@ -776,8 +868,8 @@ public class MainActivity extends Activity {
 
     private void showAboutScreen() {
         currentScreen = SCREEN_ABOUT;
-        closeNavDrawer();
         configureTopNav("Acerca de", false, false);
+        updateBottomNav();
         setResultsChromeVisible(false);
         setDefaultPagePadding();
         pageLayout.removeAllViews();
@@ -792,8 +884,8 @@ public class MainActivity extends Activity {
 
     private void showResultsScreen() {
         currentScreen = SCREEN_RESULTS;
-        closeNavDrawer();
         configureTopNav("Resultados", true, false);
+        updateBottomNav();
         setResultsPagePadding();
         pageLayout.removeAllViews();
         resultsLayout = new LinearLayout(this);
@@ -806,13 +898,21 @@ public class MainActivity extends Activity {
 
     private void setDefaultPagePadding() {
         if (pageLayout != null) {
-            pageLayout.setPadding(dp(16), dp(104), dp(16), dp(86));
+            pageLayout.setPadding(dp(16), dp(16), dp(16), dp(104) + bottomNavInsetBottom);
         }
     }
 
     private void setResultsPagePadding() {
         if (pageLayout != null) {
-            pageLayout.setPadding(dp(16), dp(172), dp(16), dp(132) + systemNavInsetBottom);
+            pageLayout.setPadding(dp(16), dp(106), dp(16), dp(216) + systemNavInsetBottom + bottomNavInsetBottom);
+        }
+    }
+
+    private void setPagePaddingForCurrentScreen() {
+        if (currentScreen == SCREEN_RESULTS) {
+            setResultsPagePadding();
+        } else {
+            setDefaultPagePadding();
         }
     }
 
@@ -846,7 +946,7 @@ public class MainActivity extends Activity {
             dp(74)
         );
         params.gravity = Gravity.TOP;
-        params.topMargin = dp(96);
+        params.topMargin = dp(16);
         params.leftMargin = dp(16);
         params.rightMargin = dp(16);
         rootLayout.addView(resultsSummaryHeader, params);
@@ -963,6 +1063,7 @@ public class MainActivity extends Activity {
             dp(92) + systemNavInsetBottom
         );
         barParams.gravity = Gravity.BOTTOM;
+        barParams.bottomMargin = dp(64) + bottomNavInsetBottom;
         rootLayout.addView(exportPdfBar, barParams);
         if (Build.VERSION.SDK_INT >= 20) {
             exportPdfBar.requestApplyInsets();
@@ -981,6 +1082,7 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) exportPdfBar.getLayoutParams();
             if (params != null) {
                 params.height = dp(92) + systemNavInsetBottom;
+                params.bottomMargin = dp(64) + bottomNavInsetBottom;
                 exportPdfBar.setLayoutParams(params);
             }
         }
@@ -1070,7 +1172,8 @@ public class MainActivity extends Activity {
         bar.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         ImageView logo = new ImageView(this);
-        logo.setImageResource(getResources().getIdentifier("ic_thermowences_logo", "drawable", getPackageName()));
+        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         bar.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
         return bar;
     }
@@ -1110,7 +1213,8 @@ public class MainActivity extends Activity {
         brandRow.setGravity(Gravity.CENTER_VERTICAL);
 
         ImageView logo = new ImageView(this);
-        logo.setImageResource(getResources().getIdentifier("ic_thermowences_logo", "drawable", getPackageName()));
+        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         brandRow.addView(logo, new LinearLayout.LayoutParams(dp(64), dp(64)));
         animateScaleIn(logo, 80);
 
@@ -1146,10 +1250,10 @@ public class MainActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setGravity(Gravity.CENTER);
 
-        TextView logo = text("QJH", 13, 0xFF04342C, false);
-        logo.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        logo.setGravity(Gravity.CENTER);
-        logo.setBackground(rounded(0xFF1D9E75, dp(10)));
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setContentDescription("Logo TermoWences");
         content.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         TextView name = text("TermoWences", 16, COLOR_TEXT, false);
@@ -2337,6 +2441,7 @@ public class MainActivity extends Activity {
             history.remove(history.size() - 1);
         }
         saveHistory();
+        updateBottomNav();
         renderHistory();
     }
 
@@ -2345,6 +2450,7 @@ public class MainActivity extends Activity {
             return;
         }
         historyLayout.removeAllViews();
+        updateBottomNav();
         historyHeaderViews.clear();
         historyLayout.addView(historyScreenHeader(), matchWrap(0, 0, 0, 14));
         if (history.isEmpty()) {
@@ -2557,6 +2663,7 @@ public class MainActivity extends Activity {
                     public void onAnimationEnd(Animator animation) {
                         history.remove(record);
                         saveHistory();
+                        updateBottomNav();
                         renderHistory();
                     }
                 });
@@ -2781,12 +2888,14 @@ public class MainActivity extends Activity {
     private void deleteHistoryRecord(CalculationRecord record) {
         history.remove(record);
         saveHistory();
+        updateBottomNav();
         renderHistory();
     }
 
     private void clearHistory() {
         history.clear();
         saveHistory();
+        updateBottomNav();
         renderHistory();
     }
 
@@ -3142,16 +3251,19 @@ public class MainActivity extends Activity {
     }
 
     private void drawPdfLogo(Canvas canvas, Paint paint, int x, int y) {
+        Bitmap logo = BitmapFactory.decodeResource(getResources(), R.drawable.logo_circular_dark);
+        if (logo != null) {
+            canvas.drawBitmap(
+                logo,
+                new Rect(0, 0, logo.getWidth(), logo.getHeight()),
+                new RectF(x, y, x + 34, y + 34),
+                paint
+            );
+            return;
+        }
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(COLOR_PRIMARY);
-        canvas.drawRoundRect(x, y, x + 34, y + 34, 7, 7, paint);
-        paint.setColor(COLOR_ACCENT);
-        canvas.drawCircle(x + 11, y + 12, 6, paint);
-        paint.setColor(0xFFFFFFFF);
-        paint.setStrokeWidth(3);
-        canvas.drawLine(x + 8, y + 25, x + 27, y + 25, paint);
-        canvas.drawLine(x + 23, y + 8, x + 23, y + 23, paint);
-        paint.setStyle(Paint.Style.FILL);
+        canvas.drawCircle(x + 17, y + 17, 17, paint);
     }
 
     private String trimForPdf(String value, int max) {
@@ -3973,6 +4085,166 @@ public class MainActivity extends Activity {
             ));
             canvas.drawRect(0, 0, getWidth(), getHeight(), paint);
             paint.setShader(null);
+        }
+    }
+
+    private final class BottomNavShell extends FrameLayout {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        BottomNavShell(Context context) {
+            super(context);
+            setWillNotDraw(false);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            paint.setShader(new LinearGradient(
+                0,
+                0,
+                0,
+                dp(20),
+                0x000F1A18,
+                COLOR_BG,
+                Shader.TileMode.CLAMP
+            ));
+            canvas.drawRect(0, 0, getWidth(), dp(20), paint);
+            paint.setShader(null);
+            super.onDraw(canvas);
+        }
+    }
+
+    private final class BottomNavItemView extends FrameLayout {
+        private final int iconType;
+        private final String label;
+        private final int targetScreen;
+        private final LinearLayout pill;
+        private final NavIconView icon;
+        private final TextView labelView;
+        private final TextView badge;
+        private boolean selectedState = false;
+
+        BottomNavItemView(Context context, int iconType, String label, int targetScreen) {
+            super(context);
+            this.iconType = iconType;
+            this.label = label;
+            this.targetScreen = targetScreen;
+            setPadding(0, 0, 0, 0);
+            setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 26), dp(32)));
+            setContentDescription(label);
+
+            pill = new LinearLayout(context);
+            pill.setOrientation(LinearLayout.VERTICAL);
+            pill.setGravity(Gravity.CENTER);
+            pill.setPadding(dp(18), dp(8), dp(18), dp(6));
+            pill.setBackground(rounded(0xFF1D4A3C, dp(14)));
+            pill.setScaleX(0f);
+            pill.setScaleY(0f);
+
+            FrameLayout iconWrap = new FrameLayout(context);
+            icon = new NavIconView(context, iconType, 0xFF3A5A52);
+            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(28), dp(28));
+            iconParams.gravity = Gravity.CENTER;
+            iconWrap.addView(icon, iconParams);
+
+            badge = text("", 9, 0xFF04342C, true);
+            badge.setGravity(Gravity.CENTER);
+            badge.setBackground(rounded(COLOR_PRIMARY, dp(8)));
+            badge.setVisibility(GONE);
+            badge.setScaleX(0f);
+            badge.setScaleY(0f);
+            FrameLayout.LayoutParams badgeParams = new FrameLayout.LayoutParams(dp(16), dp(16));
+            badgeParams.gravity = Gravity.TOP | Gravity.END;
+            badgeParams.topMargin = -dp(4);
+            badgeParams.rightMargin = -dp(4);
+            iconWrap.addView(badge, badgeParams);
+
+            pill.addView(iconWrap, new LinearLayout.LayoutParams(dp(32), dp(26)));
+            labelView = text(label, 10, COLOR_PRIMARY, false);
+            labelView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            labelView.setGravity(Gravity.CENTER);
+            labelView.setVisibility(GONE);
+            pill.addView(labelView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+            FrameLayout.LayoutParams pillParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            );
+            pillParams.gravity = Gravity.CENTER;
+            addView(pill, pillParams);
+        }
+
+        void setSelectedState(boolean selected, int historyCount) {
+            if (selectedState != selected) {
+                selectedState = selected;
+                icon.animate().alpha(0.25f).setDuration(75).withEndAction(() -> {
+                    icon.setIconColor(selected ? COLOR_PRIMARY : 0xFF3A5A52);
+                    icon.invalidate();
+                    icon.animate().alpha(1f).setDuration(75).start();
+                }).start();
+                labelView.setVisibility(selected ? VISIBLE : GONE);
+                pill.animate()
+                    .scaleX(selected ? 1f : 0.68f)
+                    .scaleY(selected ? 1f : 0.68f)
+                    .alpha(selected ? 1f : 0f)
+                    .setDuration(220)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .withStartAction(() -> {
+                        if (selected) {
+                            pill.setVisibility(VISIBLE);
+                        }
+                    })
+                    .withEndAction(() -> {
+                        if (!selected) {
+                            pill.setVisibility(VISIBLE);
+                            pill.setScaleX(1f);
+                            pill.setScaleY(1f);
+                            pill.setAlpha(1f);
+                            pill.setBackground(rounded(0x00000000, dp(14)));
+                        } else {
+                            pill.setBackground(rounded(0xFF1D4A3C, dp(14)));
+                        }
+                    })
+                    .start();
+                if (!selected) {
+                    pill.setBackground(rounded(0x00000000, dp(14)));
+                    labelView.setVisibility(GONE);
+                }
+            } else {
+                icon.setIconColor(selected ? COLOR_PRIMARY : 0xFF3A5A52);
+                icon.invalidate();
+                labelView.setVisibility(selected ? VISIBLE : GONE);
+                pill.setBackground(rounded(selected ? 0xFF1D4A3C : 0x00000000, dp(14)));
+                pill.setScaleX(1f);
+                pill.setScaleY(1f);
+                pill.setAlpha(1f);
+            }
+            updateBadge(historyCount);
+        }
+
+        private void updateBadge(int historyCount) {
+            if (targetScreen != SCREEN_HISTORY) {
+                return;
+            }
+            if (historyCount <= 0) {
+                if (badge.getVisibility() == VISIBLE) {
+                    badge.animate()
+                        .scaleX(0f)
+                        .scaleY(0f)
+                        .alpha(0f)
+                        .setDuration(150)
+                        .withEndAction(() -> badge.setVisibility(GONE))
+                        .start();
+                }
+                return;
+            }
+            badge.setText(String.valueOf(Math.min(99, historyCount)));
+            if (badge.getVisibility() != VISIBLE) {
+                badge.setVisibility(VISIBLE);
+                badge.setAlpha(0f);
+                badge.setScaleX(0f);
+                badge.setScaleY(0f);
+                badge.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(150).start();
+            }
         }
     }
 
