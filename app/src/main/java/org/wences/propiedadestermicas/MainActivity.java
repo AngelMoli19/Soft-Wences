@@ -181,6 +181,7 @@ public class MainActivity extends Activity {
     private LinearLayout bottomNavRow;
     private final List<BottomNavItemView> bottomNavItems = new ArrayList<>();
     private int bottomNavInsetBottom = 0;
+    private int systemStatusInsetTop = 0;
     private int currentScreen = SCREEN_MENU;
     private int selectedTableIndex = 0;
     private EditText temperatureInput;
@@ -203,12 +204,10 @@ public class MainActivity extends Activity {
     private ShimmerView calculateShimmer;
     private LinearLayout resultsLayout;
     private LinearLayout resultsSummaryHeader;
-    private FrameLayout exportPdfBar;
     private LinearLayout exportPdfButtonView;
     private TextView exportPdfText;
     private NavIconView exportPdfIcon;
     private SmallSpinnerView exportPdfSpinner;
-    private int systemNavInsetBottom = 0;
     private LinearLayout historyLayout;
     private LinearLayout historyStickyHeader;
     private TextView historyStickyText;
@@ -229,6 +228,12 @@ public class MainActivity extends Activity {
         Window window = getWindow();
         if (Build.VERSION.SDK_INT >= 30) {
             window.setDecorFitsSystemWindows(false);
+        } else {
+            window.getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            );
         }
         window.setStatusBarColor(COLOR_BG);
         window.setNavigationBarColor(0xFF0B0E10);
@@ -250,6 +255,11 @@ public class MainActivity extends Activity {
     private void buildUi() {
         rootLayout = new FrameLayout(this);
         rootLayout.setBackgroundColor(COLOR_BG);
+        rootLayout.setOnApplyWindowInsetsListener((view, insets) -> {
+            int top = insets == null ? 0 : Math.max(0, insets.getSystemWindowInsetTop());
+            applyStatusTopInset(top);
+            return insets;
+        });
 
         mainScrollView = new ScrollView(this);
         mainScrollView.setFillViewport(false);
@@ -277,7 +287,7 @@ public class MainActivity extends Activity {
             dp(28)
         );
         stickyParams.gravity = Gravity.TOP;
-        stickyParams.topMargin = dp(16);
+        stickyParams.topMargin = systemStatusInsetTop + dp(12);
         stickyParams.leftMargin = dp(30);
         stickyParams.rightMargin = dp(30);
         rootLayout.addView(historyStickyHeader, stickyParams);
@@ -291,6 +301,9 @@ public class MainActivity extends Activity {
         rootLayout.addView(bottomNavBar, bottomParams);
 
         setContentView(rootLayout);
+        if (Build.VERSION.SDK_INT >= 20) {
+            rootLayout.requestApplyInsets();
+        }
         showMainMenu();
     }
 
@@ -299,11 +312,12 @@ public class MainActivity extends Activity {
         configureTopNav("Inicio", false, true);
         updateBottomNav();
         setResultsChromeVisible(false);
-        setDefaultPagePadding();
+        setHomePagePadding();
         pendingRevealViews.clear();
         pageLayout.removeAllViews();
-        pageLayout.addView(heroSection(), matchWrap(0, 0, 0, 14));
-        pageLayout.addView(menuSummary(), matchWrap(0, 0, 0, 0));
+        pageLayout.addView(homeHeader(), matchWrap(0, 0, 0, 16));
+        pageLayout.addView(heroSection(), matchWrap(dp(16), 0, dp(16), 14));
+        pageLayout.addView(menuSummary(), matchWrap(dp(16), 0, dp(16), 0));
         animateIntro();
     }
 
@@ -411,13 +425,6 @@ public class MainActivity extends Activity {
         if (params != null) {
             params.height = dp(64) + bottomNavInsetBottom;
             container.setLayoutParams(params);
-        }
-        if (exportPdfBar != null) {
-            FrameLayout.LayoutParams exportParams = (FrameLayout.LayoutParams) exportPdfBar.getLayoutParams();
-            if (exportParams != null) {
-                exportParams.bottomMargin = dp(64) + bottomNavInsetBottom;
-                exportPdfBar.setLayoutParams(exportParams);
-            }
         }
     }
 
@@ -839,7 +846,6 @@ public class MainActivity extends Activity {
         setResultsChromeVisible(false);
         setDefaultPagePadding();
         pageLayout.removeAllViews();
-        pageLayout.addView(screenHeader("Calcular", "Consulta propiedades y revisa gráficos individuales por resultado."), matchWrap(0, 0, 0, 14));
         pageLayout.addView(calculatorSection(), matchWrap(0, 0, 0, 14));
 
         setSelectedTable(lastTableKey, false);
@@ -858,10 +864,9 @@ public class MainActivity extends Activity {
         setResultsChromeVisible(false);
         setDefaultPagePadding();
         pageLayout.removeAllViews();
-        pageLayout.addView(screenHeader("Historial", "Reabre, exporta o elimina cálculos guardados."), matchWrap(0, 0, 0, 14));
         historyLayout = new LinearLayout(this);
         historyLayout.setOrientation(LinearLayout.VERTICAL);
-        pageLayout.addView(card(historyLayout), matchWrap(0, 0, 0, 0));
+        pageLayout.addView(historyCard(historyLayout), matchWrap(0, 0, 0, 0));
         renderHistory();
         animateIntro();
     }
@@ -898,21 +903,56 @@ public class MainActivity extends Activity {
 
     private void setDefaultPagePadding() {
         if (pageLayout != null) {
-            pageLayout.setPadding(dp(16), dp(16), dp(16), dp(104) + bottomNavInsetBottom);
+            pageLayout.setPadding(dp(16), systemStatusInsetTop + dp(24), dp(16), dp(104) + bottomNavInsetBottom);
+        }
+    }
+
+    private void setHomePagePadding() {
+        if (pageLayout != null) {
+            pageLayout.setPadding(0, 0, 0, dp(104) + bottomNavInsetBottom);
         }
     }
 
     private void setResultsPagePadding() {
         if (pageLayout != null) {
-            pageLayout.setPadding(dp(16), dp(106), dp(16), dp(216) + systemNavInsetBottom + bottomNavInsetBottom);
+            pageLayout.setPadding(dp(16), systemStatusInsetTop + dp(114), dp(16), dp(104) + bottomNavInsetBottom);
         }
     }
 
     private void setPagePaddingForCurrentScreen() {
         if (currentScreen == SCREEN_RESULTS) {
             setResultsPagePadding();
+        } else if (currentScreen == SCREEN_MENU) {
+            setHomePagePadding();
         } else {
             setDefaultPagePadding();
+        }
+    }
+
+    private void applyStatusTopInset(int topInset) {
+        int normalized = Math.max(0, topInset);
+        if (normalized == systemStatusInsetTop) {
+            return;
+        }
+        systemStatusInsetTop = normalized;
+        setPagePaddingForCurrentScreen();
+        updateTopOverlayMargins();
+    }
+
+    private void updateTopOverlayMargins() {
+        if (historyStickyHeader != null) {
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) historyStickyHeader.getLayoutParams();
+            if (params != null) {
+                params.topMargin = systemStatusInsetTop + dp(12);
+                historyStickyHeader.setLayoutParams(params);
+            }
+        }
+        if (resultsSummaryHeader != null) {
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) resultsSummaryHeader.getLayoutParams();
+            if (params != null) {
+                params.topMargin = systemStatusInsetTop + dp(24);
+                resultsSummaryHeader.setLayoutParams(params);
+            }
         }
     }
 
@@ -922,18 +962,13 @@ public class MainActivity extends Activity {
                 rootLayout.removeView(resultsSummaryHeader);
                 resultsSummaryHeader = null;
             }
-            if (exportPdfBar != null) {
-                rootLayout.removeView(exportPdfBar);
-                exportPdfBar = null;
-                exportPdfButtonView = null;
-                exportPdfText = null;
-                exportPdfIcon = null;
-                exportPdfSpinner = null;
-            }
+            exportPdfButtonView = null;
+            exportPdfText = null;
+            exportPdfIcon = null;
+            exportPdfSpinner = null;
             return;
         }
         showResultsSummaryHeader();
-        showExportPdfBar();
     }
 
     private void showResultsSummaryHeader() {
@@ -946,7 +981,7 @@ public class MainActivity extends Activity {
             dp(74)
         );
         params.gravity = Gravity.TOP;
-        params.topMargin = dp(16);
+        params.topMargin = systemStatusInsetTop + dp(24);
         params.leftMargin = dp(16);
         params.rightMargin = dp(16);
         rootLayout.addView(resultsSummaryHeader, params);
@@ -1005,89 +1040,6 @@ public class MainActivity extends Activity {
         return new SimpleDateFormat("HH:mm - d MMMM", new Locale("es", "ES")).format(new Date());
     }
 
-    private void showExportPdfBar() {
-        if (exportPdfBar != null) {
-            rootLayout.removeView(exportPdfBar);
-            exportPdfButtonView = null;
-            exportPdfText = null;
-            exportPdfIcon = null;
-            exportPdfSpinner = null;
-        }
-        exportPdfBar = new BottomExportBar(this);
-        exportPdfBar.setPadding(dp(12), dp(16), dp(12), dp(12) + systemNavInsetBottom);
-        exportPdfBar.setOnApplyWindowInsetsListener((view, insets) -> {
-            int bottom = insets == null ? 0 : insets.getSystemWindowInsetBottom();
-            applyResultsBottomInset(bottom);
-            return insets;
-        });
-
-        LinearLayout button = new LinearLayout(this);
-        exportPdfButtonView = button;
-        button.setOrientation(LinearLayout.HORIZONTAL);
-        button.setGravity(Gravity.CENTER);
-        button.setPadding(dp(16), 0, dp(16), 0);
-        button.setBackground(rippleBackground(COLOR_ACCENT, 0x33000000, dp(12)));
-        button.setOnClickListener(view -> handleExportPdfPress());
-        button.setOnTouchListener((view, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                view.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80).start();
-            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-                view.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
-            }
-            return false;
-        });
-
-        exportPdfIcon = new NavIconView(this, ICON_REPORT, 0xFF412402);
-        button.addView(exportPdfIcon, new LinearLayout.LayoutParams(dp(24), dp(24)));
-        exportPdfSpinner = new SmallSpinnerView(this, 0xFF412402);
-        exportPdfSpinner.setVisibility(View.GONE);
-        button.addView(exportPdfSpinner, new LinearLayout.LayoutParams(dp(22), dp(22)));
-        exportPdfText = text("Exportar PDF", 14, 0xFF412402, false);
-        exportPdfText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        textParams.leftMargin = dp(8);
-        button.addView(exportPdfText, textParams);
-
-        FrameLayout.LayoutParams buttonParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            dp(52)
-        );
-        buttonParams.gravity = Gravity.BOTTOM;
-        exportPdfBar.addView(button, buttonParams);
-
-        FrameLayout.LayoutParams barParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            dp(92) + systemNavInsetBottom
-        );
-        barParams.gravity = Gravity.BOTTOM;
-        barParams.bottomMargin = dp(64) + bottomNavInsetBottom;
-        rootLayout.addView(exportPdfBar, barParams);
-        if (Build.VERSION.SDK_INT >= 20) {
-            exportPdfBar.requestApplyInsets();
-        }
-    }
-
-    private void applyResultsBottomInset(int bottomInset) {
-        int normalized = Math.max(0, bottomInset);
-        if (normalized == systemNavInsetBottom && exportPdfBar != null) {
-            return;
-        }
-        systemNavInsetBottom = normalized;
-        setResultsPagePadding();
-        if (exportPdfBar != null) {
-            exportPdfBar.setPadding(dp(12), dp(16), dp(12), dp(12) + systemNavInsetBottom);
-            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) exportPdfBar.getLayoutParams();
-            if (params != null) {
-                params.height = dp(92) + systemNavInsetBottom;
-                params.bottomMargin = dp(64) + bottomNavInsetBottom;
-                exportPdfBar.setLayoutParams(params);
-            }
-        }
-    }
-
     private void handleExportPdfPress() {
         if (lastPdfLines.isEmpty()) {
             showMessage("Primero realiza un calculo para exportar.");
@@ -1098,7 +1050,7 @@ public class MainActivity extends Activity {
     }
 
     private void setExportPdfState(String state) {
-        if (exportPdfText == null || exportPdfIcon == null || exportPdfSpinner == null || exportPdfBar == null) {
+        if (exportPdfText == null || exportPdfIcon == null || exportPdfSpinner == null) {
             return;
         }
         if ("loading".equals(state)) {
@@ -1208,25 +1160,6 @@ public class MainActivity extends Activity {
         hero.setBackground(gradient(0xFF0D2B25, 0xFF1A4A3C, dp(16)));
         hero.setElevation(dp(6));
 
-        LinearLayout brandRow = new LinearLayout(this);
-        brandRow.setOrientation(LinearLayout.HORIZONTAL);
-        brandRow.setGravity(Gravity.CENTER_VERTICAL);
-
-        ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.logo_circular_dark);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        brandRow.addView(logo, new LinearLayout.LayoutParams(dp(64), dp(64)));
-        animateScaleIn(logo, 80);
-
-        LinearLayout brandText = new LinearLayout(this);
-        brandText.setOrientation(LinearLayout.VERTICAL);
-        brandText.setPadding(dp(12), 0, 0, 0);
-        brandText.addView(text("TermoWences", 28, 0xFFFFFFFF, true), compactWrap());
-        TextView subtitle = text("Propiedades térmicas para ingeniería", 14, 0xBFFFFFFF, false);
-        brandText.addView(subtitle, compactWrap());
-        brandRow.addView(brandText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        hero.addView(brandRow, matchWrap(0, 0, 0, 14));
-
         EngineeringHeroVisual visual = new EngineeringHeroVisual(this);
         visual.setBackground(roundedStroke(0x2210181B, 0x334A7771, dp(8)));
         hero.addView(visual, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(174)));
@@ -1242,9 +1175,35 @@ public class MainActivity extends Activity {
         return hero;
     }
 
+    private View homeHeader() {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(20), systemStatusInsetTop + dp(16), dp(20), 0);
+        header.setBackgroundColor(0x00000000);
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setContentDescription("Logo TermoWences");
+        header.addView(logo, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        animateScaleIn(logo, 40);
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, 0, 0);
+        TextView title = text("TermoWences", 20, COLOR_TEXT, false);
+        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        copy.addView(title, compactWrap());
+        TextView subtitle = text("Propiedades térmicas para ingeniería", 12, 0xFF7FA89C, false);
+        copy.addView(subtitle, matchWrap(0, dp(2), 0, 0));
+        header.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        return header;
+    }
+
     private View aboutHeroCard() {
         HexHeroCard hero = new HexHeroCard(this);
-        hero.setPadding(dp(16), dp(16), dp(16), dp(16));
+        hero.setPadding(dp(20), systemStatusInsetTop + dp(20), dp(20), dp(20));
         hero.setBackground(roundedStroke(0xFF0D2B24, 0xFF1D4A3C, dp(14)));
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -1254,9 +1213,9 @@ public class MainActivity extends Activity {
         logo.setImageResource(R.drawable.logo_circular_dark);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         logo.setContentDescription("Logo TermoWences");
-        content.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        content.addView(logo, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
-        TextView name = text("TermoWences", 16, COLOR_TEXT, false);
+        TextView name = text("TermoWences", 18, COLOR_TEXT, false);
         name.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         name.setGravity(Gravity.CENTER);
         content.addView(name, matchWrap(0, dp(10), 0, 0));
@@ -1381,11 +1340,19 @@ public class MainActivity extends Activity {
     }
 
     private View calculatorSection() {
-        LinearLayout content = section("Calcular");
-        content.addView(body("Selecciona el fluido, confirma el rango permitido e ingresa la temperatura."), matchWrap(0, dp(4), 0, 12));
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+
+        TextView title = text("Calcular", 22, COLOR_TEXT, false);
+        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        content.addView(title, compactWrap());
+
+        TextView subtitle = text("Consulta propiedades y revisa gráficos individuales por resultado.", 12, 0xFF7FA89C, false);
+        subtitle.setLineSpacing(0, 1.16f);
+        content.addView(subtitle, matchWrap(0, dp(4), 0, dp(12)));
 
         LinearLayout.LayoutParams segmentParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44));
-        segmentParams.setMargins(0, dp(4), 0, dp(10));
+        segmentParams.setMargins(0, 0, 0, dp(10));
         content.addView(segmentedControl(), segmentParams);
         content.addView(fluidInfoCard(), matchWrap(0, 0, 0, 10));
         content.addView(rangeBadgeView(), matchWrap(0, 0, 0, 8));
@@ -1959,12 +1926,68 @@ public class MainActivity extends Activity {
             return;
         }
         resultsLayout.removeAllViews();
+        exportPdfButtonView = null;
+        exportPdfText = null;
+        exportPdfIcon = null;
+        exportPdfSpinner = null;
 
         for (int i = 0; i < lastPdfEntries.size(); i++) {
             View row = resultPropertyCard(lastPdfEntries.get(i));
-            resultsLayout.addView(row, matchWrap(0, 0, 0, dp(8)));
+            int bottom = i == lastPdfEntries.size() - 1 ? 0 : dp(8);
+            resultsLayout.addView(row, matchWrap(0, 0, 0, bottom));
             animateView(row, i * 45L);
         }
+
+        if (!lastPdfEntries.isEmpty()) {
+            View pdfButton = exportPdfButtonItem();
+            resultsLayout.addView(pdfButton, matchWrap(0, 0, 0, 0));
+            animateView(pdfButton, lastPdfEntries.size() * 45L);
+        }
+    }
+
+    private View exportPdfButtonItem() {
+        FrameLayout wrapper = new FrameLayout(this);
+        wrapper.setPadding(0, dp(16), 0, dp(16));
+
+        LinearLayout button = new LinearLayout(this);
+        exportPdfButtonView = button;
+        button.setOrientation(LinearLayout.HORIZONTAL);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(16), 0, dp(16), 0);
+        button.setBackground(rippleBackground(COLOR_ACCENT, 0x33000000, dp(12)));
+        button.setOnClickListener(view -> handleExportPdfPress());
+        button.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                view.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80).start();
+            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                view.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
+            }
+            return false;
+        });
+
+        exportPdfIcon = new NavIconView(this, ICON_REPORT, 0xFF412402);
+        button.addView(exportPdfIcon, new LinearLayout.LayoutParams(dp(24), dp(24)));
+
+        exportPdfSpinner = new SmallSpinnerView(this, 0xFF412402);
+        exportPdfSpinner.setVisibility(View.GONE);
+        button.addView(exportPdfSpinner, new LinearLayout.LayoutParams(dp(22), dp(22)));
+
+        exportPdfText = text("Exportar PDF", 14, 0xFF412402, false);
+        exportPdfText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        textParams.leftMargin = dp(8);
+        button.addView(exportPdfText, textParams);
+
+        FrameLayout.LayoutParams buttonParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(52)
+        );
+        buttonParams.gravity = Gravity.TOP;
+        wrapper.addView(button, buttonParams);
+        return wrapper;
     }
 
     private View resultPropertyCard(ResultEntry entry) {
@@ -2397,6 +2420,16 @@ public class MainActivity extends Activity {
         return wrapper;
     }
 
+    private View historyCard(View child) {
+        LinearLayout wrapper = new LinearLayout(this);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+        wrapper.setPadding(dp(16), dp(16), dp(16), dp(8));
+        wrapper.setBackground(roundedStroke(COLOR_SURFACE, COLOR_BORDER, dp(12)));
+        wrapper.setElevation(dp(3));
+        wrapper.addView(child, compactWrap());
+        return wrapper;
+    }
+
     private TextView text(String value, int sp, int color, boolean bold) {
         TextView view = new TextView(this);
         view.setText(value);
@@ -2503,27 +2536,38 @@ public class MainActivity extends Activity {
 
     private View historyScreenHeader() {
         LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout topRow = new LinearLayout(this);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = text("Historial", 18, COLOR_TEXT, false);
         title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        header.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        titleRow.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         TextView badge = text(String.valueOf(history.size()), 9, COLOR_PRIMARY, true);
         badge.setGravity(Gravity.CENTER);
         badge.setBackground(rounded(0xFF1D4A3C, dp(9)));
         LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(dp(18), dp(18));
         badgeParams.setMargins(dp(8), 0, 0, 0);
-        header.addView(badge, badgeParams);
+        titleRow.addView(badge, badgeParams);
 
-        View spacer = new View(this);
-        header.addView(spacer, new LinearLayout.LayoutParams(0, dp(1), 1));
+        topRow.addView(titleRow, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         NavIconView dots = new NavIconView(this, ICON_DOTS, 0xFF7FA89C);
         dots.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(20)));
         dots.setOnClickListener(this::showHistoryOverflowMenu);
-        header.addView(dots, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        topRow.addView(dots, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        header.addView(topRow, compactWrap());
+
+        TextView subtitle = body("Reabre, exporta o elimina cálculos guardados.");
+        subtitle.setTextSize(12);
+        header.addView(subtitle, matchWrap(0, dp(4), 0, 0));
         return header;
     }
 
@@ -4874,31 +4918,6 @@ public class MainActivity extends Activity {
             ));
             canvas.drawRoundRect(0, 0, w, h, dp(12), dp(12), paint);
             paint.setShader(null);
-        }
-    }
-
-    private final class BottomExportBar extends FrameLayout {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-        BottomExportBar(Context context) {
-            super(context);
-            setWillNotDraw(false);
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            paint.setShader(new LinearGradient(
-                0,
-                0,
-                0,
-                getHeight(),
-                new int[] {0x000F1A18, 0xFF0F1A18, 0xFF0F1A18},
-                new float[] {0f, 0.22f, 1f},
-                Shader.TileMode.CLAMP
-            ));
-            canvas.drawRect(0, 0, getWidth(), getHeight(), paint);
-            paint.setShader(null);
-            super.onDraw(canvas);
         }
     }
 
