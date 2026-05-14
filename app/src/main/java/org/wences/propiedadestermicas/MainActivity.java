@@ -547,7 +547,7 @@ public class MainActivity extends Activity {
 
     private View navLogoView() {
         ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setImageResource(R.drawable.ic_thermowences_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         logo.setAdjustViewBounds(true);
         logo.setContentDescription("Logo TermoWences");
@@ -575,7 +575,7 @@ public class MainActivity extends Activity {
         bar.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setImageResource(R.drawable.ic_thermowences_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         bar.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
         animateScaleIn(logo, 120);
@@ -1291,7 +1291,7 @@ public class MainActivity extends Activity {
         bar.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setImageResource(R.drawable.ic_thermowences_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         bar.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
         return bar;
@@ -1372,7 +1372,7 @@ public class MainActivity extends Activity {
         logoFrame.addView(innerGlow, innerGlowParams);
 
         ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.logo_circular_dark);
+        logo.setImageResource(R.drawable.ic_thermowences_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         logo.setContentDescription("Logo TermoWences");
         FrameLayout.LayoutParams logoParams = new FrameLayout.LayoutParams(dp(50), dp(50));
@@ -4193,14 +4193,15 @@ public class MainActivity extends Activity {
     }
 
     private void drawPdfLogo(Canvas canvas, Paint paint, int x, int y) {
-        Bitmap logo = BitmapFactory.decodeResource(getResources(), R.drawable.logo_circular_dark);
-        if (logo != null) {
-            canvas.drawBitmap(
-                logo,
-                new Rect(0, 0, logo.getWidth(), logo.getHeight()),
-                new RectF(x, y, x + 34, y + 34),
-                paint
-            );
+        android.graphics.drawable.Drawable logoDrawable = getResources().getDrawable(R.drawable.ic_thermowences_logo, getTheme());
+        if (logoDrawable != null) {
+            int size = 34;
+            Bitmap logo = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            Canvas logoCanvas = new Canvas(logo);
+            logoDrawable.setBounds(0, 0, size, size);
+            logoDrawable.draw(logoCanvas);
+            canvas.drawBitmap(logo, new Rect(0, 0, size, size), new RectF(x, y, x + size, y + size), paint);
+            logo.recycle();
             return;
         }
         paint.setStyle(Paint.Style.FILL);

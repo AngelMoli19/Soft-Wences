@@ -1,24 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    TermoWences Logo — "Thermal Waves"
+    3 ondas: Agua (#4B8EF7 azul), Aire (#06C8D8 cyan), Vapor (#AB7DF8 violeta)
+    Cada onda tiene un punto de medición en el centro (x=54)
+    Línea vertical punteada conecta los 3 puntos
+    Fondo: navy oscuro con anillo azul
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Fondo: círculo navy profundo -->
     <path
-        android:fillColor="#126782"
-        android:pathData="M14,14h80a8,8 0,0 1,8 8v64a8,8 0,0 1,-8 8H14a8,8 0,0 1,-8 -8V22a8,8 0,0 1,8 -8z" />
+        android:fillColor="#060C18"
+        android:pathData="M54,54 m-52,0 a52,52 0 1,0 104,0 a52,52 0 1,0 -104,0"/>
+
+    <!-- Centro levemente más claro (gradiente simulado) -->
     <path
-        android:fillColor="#0A9396"
-        android:pathData="M22,76c9,-18 20,-26 34,-24c13,2 20,-4 30,-20v44z" />
+        android:fillColor="#0A1530"
+        android:pathData="M54,54 m-36,0 a36,36 0 1,0 72,0 a36,36 0 1,0 -72,0"/>
+
+    <!-- Anillo exterior azul -->
     <path
-        android:fillColor="#E9C46A"
-        android:pathData="M30,34a16,16 0,1 0,0.1 0M30,42a8,8 0,1 1,-0.1 0z" />
+        android:strokeColor="#4B8EF7"
+        android:strokeWidth="1.8"
+        android:strokeAlpha="0.9"
+        android:fillColor="#00000000"
+        android:pathData="M54,54 m-50,0 a50,50 0 1,0 100,0 a50,50 0 1,0 -100,0"/>
+
+    <!-- Anillo interior cyan (sutil) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M50,29h9v34c0,9 -7,16 -16,16c-8,0 -15,-6 -16,-14h9c1,4 4,6 7,6c4,0 7,-3 7,-8z" />
+        android:strokeColor="#06C8D8"
+        android:strokeWidth="0.6"
+        android:strokeAlpha="0.3"
+        android:fillColor="#00000000"
+        android:pathData="M54,54 m-44,0 a44,44 0 1,0 88,0 a44,44 0 1,0 -88,0"/>
+
+    <!-- Relleno bajo onda 1 (Agua - azul) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M64,29h9v18h14v8H73v24h-9z" />
+        android:fillColor="#4B8EF7"
+        android:fillAlpha="0.09"
+        android:pathData="M18,36 Q36,24 54,36 Q72,48 90,36 L90,54 L18,54 Z"/>
+
+    <!-- Relleno bajo onda 3 (Vapor - violeta) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M18,88h72v4H18z" />
+        android:fillColor="#AB7DF8"
+        android:fillAlpha="0.07"
+        android:pathData="M18,72 Q36,60 54,72 Q72,84 90,72 L90,90 L18,90 Z"/>
+
+    <!-- ONDA 1: Agua (azul) -->
+    <path
+        android:strokeColor="#4B8EF7"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M18,36 Q36,24 54,36 Q72,48 90,36"/>
+
+    <!-- ONDA 2: Aire seco (cyan) -->
+    <path
+        android:strokeColor="#06C8D8"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M18,54 Q36,42 54,54 Q72,66 90,54"/>
+
+    <!-- ONDA 3: Vapor saturado (violeta) -->
+    <path
+        android:strokeColor="#AB7DF8"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M18,72 Q36,60 54,72 Q72,84 90,72"/>
+
+    <!-- Línea de medición vertical (segmentos punteados) -->
+    <path
+        android:strokeColor="#EEF2FF"
+        android:strokeWidth="0.9"
+        android:strokeAlpha="0.30"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,39 L54,42 M54,45 L54,51 M54,57 L54,63 M54,66 L54,69"/>
+
+    <!-- DOT 1: Agua — halo exterior -->
+    <path
+        android:fillColor="#4B8EF7"
+        android:fillAlpha="0.22"
+        android:pathData="M54,36 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0"/>
+    <!-- DOT 1: Agua — anillo medio -->
+    <path
+        android:fillColor="#4B8EF7"
+        android:fillAlpha="0.65"
+        android:pathData="M54,36 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"/>
+    <!-- DOT 1: Agua — núcleo blanco -->
+    <path
+        android:fillColor="#EEF2FF"
+        android:pathData="M54,36 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0"/>
+
+    <!-- DOT 2: Aire — halo exterior -->
+    <path
+        android:fillColor="#06C8D8"
+        android:fillAlpha="0.22"
+        android:pathData="M54,54 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0"/>
+    <!-- DOT 2: Aire — anillo medio -->
+    <path
+        android:fillColor="#06C8D8"
+        android:fillAlpha="0.65"
+        android:pathData="M54,54 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"/>
+    <!-- DOT 2: Aire — núcleo blanco -->
+    <path
+        android:fillColor="#EEF2FF"
+        android:pathData="M54,54 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0"/>
+
+    <!-- DOT 3: Vapor — halo exterior -->
+    <path
+        android:fillColor="#AB7DF8"
+        android:fillAlpha="0.22"
+        android:pathData="M54,72 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0"/>
+    <!-- DOT 3: Vapor — anillo medio -->
+    <path
+        android:fillColor="#AB7DF8"
+        android:fillAlpha="0.65"
+        android:pathData="M54,72 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"/>
+    <!-- DOT 3: Vapor — núcleo blanco -->
+    <path
+        android:fillColor="#EEF2FF"
+        android:pathData="M54,72 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0"/>
+
 </vector>
