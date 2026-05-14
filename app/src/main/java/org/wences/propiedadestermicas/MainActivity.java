@@ -2333,13 +2333,13 @@ public class MainActivity extends Activity {
             return new FormulaMeta("rho", "ρ = m/V", "Relación directa entre masa y volumen ocupado por el fluido.", "[ρ] = kg·m⁻³", "m", "V");
         }
         if (label.contains("calor")) {
-            return new FormulaMeta("cp", "cₚ = du/(dm·dT)", "Energía requerida para cambiar la temperatura de una masa diferencial.", "[cₚ] = kJ·kg⁻¹·K⁻¹", "du", "dm", "dT");
+            return new FormulaMeta("cp", "cp = du/(dm·dT)", "Energía requerida para cambiar la temperatura de una masa diferencial.", "[cp] = kJ·kg⁻¹·K⁻¹", "du", "dm", "dT");
         }
         if (label.contains("conductividad")) {
             return new FormulaMeta("k", "k = (q·l)/(A·dT)", "Forma de Fourier para conducción térmica en una dirección.", "[k] = W·m⁻¹·K⁻¹", "q", "l", "A", "dT");
         }
         if (label.contains("difusividad")) {
-            return new FormulaMeta("alpha", "α = k/(ρ·cₚ)", "Relación entre conducción térmica y capacidad de almacenamiento de energía.", "[α] = m²·s⁻¹", "k", "rho", "cp");
+            return new FormulaMeta("alpha", "α = k/(ρ·cp)", "Relación entre conducción térmica y capacidad de almacenamiento de energía.", "[α] = m²·s⁻¹", "k", "rho", "cp");
         }
         if (label.contains("viscosidad cin")) {
             return new FormulaMeta("nu", "ν = μ/ρ", "Viscosidad dinámica normalizada por la densidad del fluido.", "[ν] = m²·s⁻¹", "mu", "rho");
@@ -2348,7 +2348,7 @@ public class MainActivity extends Activity {
             return new FormulaMeta("mu", "μ = τ·(du/dy)", "Relación entre esfuerzo cortante y gradiente de velocidad.", "[μ] = Pa·s", "tau", "du", "dy");
         }
         if (label.contains("prandtl")) {
-            return new FormulaMeta("Pr", "Pr = (μ·cₚ)/k", "Número adimensional que compara difusión de momento y difusión térmica.", "[Pr] = adim.", "mu", "cp", "k");
+            return new FormulaMeta("Pr", "Pr = (μ·cp)/k", "Número adimensional que compara difusión de momento y difusión térmica.", "[Pr] = adim.", "mu", "cp", "k");
         }
         if (label.contains("entalp")) {
             return new FormulaMeta("h", "h = u + p·v", "Propiedad energética usada en balances de energía de vapor y líquido saturado.", "[h] = kJ·kg⁻¹", "u", "p", "v");
