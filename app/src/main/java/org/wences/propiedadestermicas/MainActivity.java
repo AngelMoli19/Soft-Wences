@@ -50,6 +50,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
+import android.widget.HorizontalScrollView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -2150,25 +2151,25 @@ public class MainActivity extends Activity {
         String label = entry.label == null ? "" : entry.label.toLowerCase(Locale.US);
         String unit = entry.unit == null ? "" : entry.unit;
         if (label.contains("expansi")) {
-            return "K^-1";
+            return "K⁻¹";
         }
         if (label.contains("densidad")) {
-            return "kg/m3";
+            return "kg/m³";
         }
         if (label.contains("calor")) {
-            return "kJ/kg*K";
+            return "kJ/kg·K";
         }
         if (label.contains("conductividad")) {
-            return "W/m*K";
+            return "W/m·K";
         }
         if (label.contains("difusividad")) {
-            return "x10^-6 m2/s";
+            return "×10⁻⁶ m²/s";
         }
         if (label.contains("viscosidad absoluta")) {
-            return "x10^-6 Pa*s";
+            return "×10⁻⁶ Pa·s";
         }
         if (label.contains("viscosidad cin")) {
-            return "x10^-6 m2/s";
+            return "×10⁻⁶ m²/s";
         }
         if (label.contains("prandtl")) {
             return "adim.";
@@ -2181,30 +2182,38 @@ public class MainActivity extends Activity {
             return "";
         }
         return unit
-            .replace("x 10^-3 ", "x10^-3 ")
-            .replace("x 10-6 ", "x10^-6 ")
-            .replace("x 10^-6 ", "x10^-6 ")
-            .replace("K-1", "K^-1")
-            .replace("Pa s", "Pa*s")
-            .replace("m K", "m*K")
-            .replace("kg K", "kg*K");
+            .replace("x 10^-3 ", "×10⁻³ ")
+            .replace("x 10-6 ", "×10⁻⁶ ")
+            .replace("x 10^-6 ", "×10⁻⁶ ")
+            .replace("x10^-6 ", "×10⁻⁶ ")
+            .replace("x10^-3 ", "×10⁻³ ")
+            .replace("K-1", "K⁻¹")
+            .replace("K^-1", "K⁻¹")
+            .replace("Pa s", "Pa·s")
+            .replace("Pa*s", "Pa·s")
+            .replace("m K", "m·K")
+            .replace("m*K", "m·K")
+            .replace("kg K", "kg·K")
+            .replace("kg*K", "kg·K")
+            .replace("m2/s", "m²/s")
+            .replace("m3", "m³");
     }
 
     private String evaluationValue(ResultEntry entry) {
         String unit = entry.unit == null ? "" : entry.unit;
         String value = valueOnly(entry);
         if (unit.startsWith("x 10^-3")) {
-            return value + " x10^-3";
+            return value + " ×10⁻³";
         }
         if (unit.startsWith("x 10-6") || unit.startsWith("x 10^-6")) {
-            return value + " x10^-6";
+            return value + " ×10⁻⁶";
         }
         return value;
     }
 
     private String formulaText(ResultEntry entry) {
         FormulaMeta meta = formulaMeta(entry);
-        String eval = String.format(Locale.US, "@ %.2f C = %s %s", entry.temperature, evaluationValue(entry), unitBadge(entry));
+        String eval = String.format(Locale.US, "@ %.2f °C = %s %s", entry.temperature, evaluationValue(entry), unitBadge(entry));
         return meta.copyExpression + "\nMetodo: spline cubica interpolada\n" + eval.trim();
     }
 
@@ -2275,29 +2284,29 @@ public class MainActivity extends Activity {
     }
 
     private String variableName(String token) {
-        if ("beta".equals(token)) return "coeficiente de expansion volumetrica";
+        if ("beta".equals(token)) return "coeficiente de expansión volumétrica";
         if ("rho".equals(token)) return "densidad";
-        if ("cp".equals(token)) return "calor especifico";
-        if ("P_sat".equals(token)) return "presion de saturacion";
-        if ("h".equals(token)) return "entalpia";
-        if ("s".equals(token)) return "entropia";
+        if ("cp".equals(token)) return "calor específico";
+        if ("P_sat".equals(token)) return "presión de saturación";
+        if ("h".equals(token)) return "entalpía";
+        if ("s".equals(token)) return "entropía";
         if ("k".equals(token)) return "conductividad térmica";
-        if ("alpha".equals(token)) return "difusividad termica";
+        if ("alpha".equals(token)) return "difusividad térmica";
         if ("mu".equals(token)) return "viscosidad absoluta";
-        if ("nu".equals(token)) return "viscosidad cinematica";
-        if ("Pr".equals(token)) return "numero de Prandtl";
+        if ("nu".equals(token)) return "viscosidad cinemática";
+        if ("Pr".equals(token)) return "número de Prandtl";
         if ("m".equals(token)) return "masa";
         if ("V".equals(token)) return "volumen";
         if ("T".equals(token)) return "temperatura";
-        if ("u".equals(token)) return "energia interna o velocidad";
+        if ("u".equals(token)) return "energía interna o velocidad";
         if ("q".equals(token)) return "calor transferido";
         if ("l".equals(token)) return "longitud";
-        if ("A".equals(token)) return "area";
+        if ("A".equals(token)) return "área";
         if ("tau".equals(token)) return "esfuerzo cortante";
         if ("y".equals(token)) return "coordenada normal";
-        if ("p".equals(token)) return "presion";
-        if ("v".equals(token)) return "volumen especifico";
-        return "variable de ecuacion";
+        if ("p".equals(token)) return "presión";
+        if ("v".equals(token)) return "volumen específico";
+        return "variable de ecuación";
     }
 
     private String variableValue(ResultEntry entry, String token) {
@@ -2315,7 +2324,7 @@ public class MainActivity extends Activity {
             return unitBadge(entry);
         }
         if ("T".equals(token)) {
-            return "C";
+            return "°C";
         }
         return "segun definicion";
     }
@@ -2323,39 +2332,39 @@ public class MainActivity extends Activity {
     private FormulaMeta formulaMeta(ResultEntry entry) {
         String label = entry == null || entry.label == null ? "" : entry.label.toLowerCase(Locale.US);
         if (label.contains("pres")) {
-            return new FormulaMeta("P_sat", "P_sat = f(T)", "Propiedad de saturacion obtenida como funcion de la temperatura.", "[P_sat] = kPa", "T");
+            return new FormulaMeta("P_sat", "P_sat = f(T)", "Propiedad de saturación obtenida como función de la temperatura.", "[P_sat] = kPa", "T");
         }
         if (label.contains("expansi")) {
-            return new FormulaMeta("beta", "beta = (1/V)*(dV/dT)", "Derivada de la definicion termodinamica del cambio relativo de volumen con la temperatura.", "[beta] = K^-1", "1", "V", "dV", "dT");
+            return new FormulaMeta("beta", "β = (1/V)·(dV/dT)", "Derivada de la definición termodinámica del cambio relativo de volumen con la temperatura.", "[β] = K⁻¹", "1", "V", "dV", "dT");
         }
         if (label.contains("densidad")) {
-            return new FormulaMeta("rho", "rho = m/V", "Relacion directa entre masa y volumen ocupado por el fluido.", "[rho] = kg*m^-3", "m", "V");
+            return new FormulaMeta("rho", "ρ = m/V", "Relación directa entre masa y volumen ocupado por el fluido.", "[ρ] = kg·m⁻³", "m", "V");
         }
         if (label.contains("calor")) {
-            return new FormulaMeta("cp", "c_p = du/(dm*dT)", "Energia requerida para cambiar la temperatura de una masa diferencial.", "[c_p] = kJ*kg^-1*K^-1", "du", "dm", "dT");
+            return new FormulaMeta("cp", "cₚ = du/(dm·dT)", "Energía requerida para cambiar la temperatura de una masa diferencial.", "[cₚ] = kJ·kg⁻¹·K⁻¹", "du", "dm", "dT");
         }
         if (label.contains("conductividad")) {
-            return new FormulaMeta("k", "k = (q*l)/(A*dT)", "Forma de Fourier para conduccion termica en una direccion.", "[k] = W*m^-1*K^-1", "q", "l", "A", "dT");
+            return new FormulaMeta("k", "k = (q·l)/(A·dT)", "Forma de Fourier para conducción térmica en una dirección.", "[k] = W·m⁻¹·K⁻¹", "q", "l", "A", "dT");
         }
         if (label.contains("difusividad")) {
-            return new FormulaMeta("alpha", "alpha = k/(rho*c_p)", "Relacion entre conduccion termica y capacidad de almacenamiento de energia.", "[alpha] = m^2*s^-1", "k", "rho", "cp");
+            return new FormulaMeta("alpha", "α = k/(ρ·cₚ)", "Relación entre conducción térmica y capacidad de almacenamiento de energía.", "[α] = m²·s⁻¹", "k", "rho", "cp");
         }
         if (label.contains("viscosidad cin")) {
-            return new FormulaMeta("nu", "nu = mu/rho", "Viscosidad dinamica normalizada por la densidad del fluido.", "[nu] = m^2*s^-1", "mu", "rho");
+            return new FormulaMeta("nu", "ν = μ/ρ", "Viscosidad dinámica normalizada por la densidad del fluido.", "[ν] = m²·s⁻¹", "mu", "rho");
         }
         if (label.contains("viscosidad")) {
-            return new FormulaMeta("mu", "mu = tau*(du/dy)", "Relacion entre esfuerzo cortante y gradiente de velocidad.", "[mu] = Pa*s", "tau", "du", "dy");
+            return new FormulaMeta("mu", "μ = τ·(du/dy)", "Relación entre esfuerzo cortante y gradiente de velocidad.", "[μ] = Pa·s", "tau", "du", "dy");
         }
         if (label.contains("prandtl")) {
-            return new FormulaMeta("Pr", "Pr = (mu*c_p)/k", "Numero adimensional que compara difusion de momento y difusion termica.", "[Pr] = adim.", "mu", "cp", "k");
+            return new FormulaMeta("Pr", "Pr = (μ·cₚ)/k", "Número adimensional que compara difusión de momento y difusión térmica.", "[Pr] = adim.", "mu", "cp", "k");
         }
         if (label.contains("entalp")) {
-            return new FormulaMeta("h", "h = u + p*v", "Propiedad energetica usada en balances de energia de vapor y liquido saturado.", "[h] = kJ*kg^-1", "u", "p", "v");
+            return new FormulaMeta("h", "h = u + p·v", "Propiedad energética usada en balances de energía de vapor y líquido saturado.", "[h] = kJ·kg⁻¹", "u", "p", "v");
         }
         if (label.contains("entrop")) {
-            return new FormulaMeta("s", "ds = dq_rev/T", "Propiedad de estado asociada a la irreversibilidad y transferencia reversible de calor.", "[s] = kJ*kg^-1*K^-1", "q", "T");
+            return new FormulaMeta("s", "ds = dq_rev/T", "Propiedad de estado asociada a la irreversibilidad y transferencia reversible de calor.", "[s] = kJ·kg⁻¹·K⁻¹", "q", "T");
         }
-        return new FormulaMeta("f", "f = f(T)", "Propiedad interpolada como funcion de la temperatura consultada.", "[f] = unidad de tabla", "T");
+        return new FormulaMeta("f", "f = f(T)", "Propiedad interpolada como función de la temperatura consultada.", "[f] = unidad de tabla", "T");
     }
 
     private int trendType(ResultEntry entry) {
@@ -4615,7 +4624,10 @@ public class MainActivity extends Activity {
             content.setOnClickListener(view -> toggleExpanded());
 
             MathEquationView equation = new MathEquationView(context, entry);
-            content.addView(equation, compactWrap());
+            HorizontalScrollView equationScroll = new HorizontalScrollView(context);
+            equationScroll.setHorizontalScrollBarEnabled(false);
+            equationScroll.addView(equation, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            content.addView(equationScroll, compactWrap());
 
             LinearLayout method = new LinearLayout(context);
             method.setGravity(Gravity.CENTER_VERTICAL);
@@ -4628,7 +4640,7 @@ public class MainActivity extends Activity {
             LinearLayout eval = new LinearLayout(context);
             eval.setGravity(Gravity.CENTER_VERTICAL);
             eval.setOrientation(HORIZONTAL);
-            TextView evalText = text(String.format(Locale.US, "@ %.2f C -> %s", entry.temperature, evaluationValue(entry)), 10, COLOR_PRIMARY, false);
+            TextView evalText = text(String.format(Locale.US, "@ %.2f °C → %s", entry.temperature, evaluationValue(entry)), 10, COLOR_PRIMARY, false);
             evalText.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
             eval.addView(evalText, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             TextView badge = text(unitBadge(entry), 9, 0xFF7FA89C, false);
