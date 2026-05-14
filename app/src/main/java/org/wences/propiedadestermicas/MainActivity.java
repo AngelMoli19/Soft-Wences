@@ -1012,7 +1012,7 @@ public class MainActivity extends Activity {
         pageLayout.addView(aboutBannerSection(), matchWrap(0, 0, 0, dp(16)));
         pageLayout.addView(aboutFeaturesSection(), matchWrap(0, 0, 0, dp(16)));
         pageLayout.addView(aboutTechSection(), matchWrap(0, 0, 0, dp(16)));
-        pageLayout.addView(aboutTeamButton(), matchWrap(0, 0, 0, dp(16)));
+        pageLayout.addView(aboutTeamSection(), matchWrap(0, 0, 0, dp(16)));
         pageLayout.addView(academicFooter(), matchWrap(0, 0, 0, 0));
         animateIntro();
     }
@@ -1654,132 +1654,22 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    private View aboutTeamButton() {
-        LinearLayout btn = new LinearLayout(this);
-        btn.setOrientation(LinearLayout.HORIZONTAL);
-        btn.setGravity(Gravity.CENTER_VERTICAL);
-        btn.setPadding(dp(18), 0, dp(18), 0);
-        GradientDrawable btnBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-            new int[]{ withAlpha(COLOR_PRIMARY, 38), withAlpha(COLOR_SECONDARY, 32) });
-        btnBg.setCornerRadius(dp(16));
-        btnBg.setStroke(dp(1), withAlpha(COLOR_PRIMARY, 55));
-        btn.setBackground(btnBg);
-        btn.setElevation(dp(4));
+    private View aboutTeamSection() {
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
 
-        FrameLayout iconCircle = new FrameLayout(this);
-        View iconBg = new View(this);
-        GradientDrawable iBg = new GradientDrawable();
-        iBg.setShape(GradientDrawable.OVAL);
-        iBg.setColor(withAlpha(COLOR_PRIMARY, 25));
-        iconBg.setBackground(iBg);
-        iconCircle.addView(iconBg, new FrameLayout.LayoutParams(dp(44), dp(44)));
-        NavIconView icon = new NavIconView(this, ICON_INFO, COLOR_PRIMARY);
-        FrameLayout.LayoutParams iLP = new FrameLayout.LayoutParams(dp(22), dp(22));
-        iLP.gravity = Gravity.CENTER;
-        iconCircle.addView(icon, iLP);
-        btn.addView(iconCircle, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        // Etiqueta de sección
+        TextView label = text("EQUIPO DE DESARROLLO", 9, withAlpha(COLOR_PRIMARY, 200), false);
+        label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        label.setLetterSpacing(0.12f);
+        outer.addView(label, matchWrap(dp(2), 0, 0, dp(14)));
 
-        LinearLayout textBlock = new LinearLayout(this);
-        textBlock.setOrientation(LinearLayout.VERTICAL);
-        textBlock.setPadding(dp(14), 0, 0, 0);
-        TextView titleV = text("Conocer al equipo", 15, COLOR_TEXT, false);
-        titleV.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        textBlock.addView(titleV, compactWrap());
-        TextView subV = text("Conoce quiénes desarrollaron esta app", 11, COLOR_MUTED, false);
-        textBlock.addView(subV, matchWrap(0, dp(3), 0, 0));
-        btn.addView(textBlock, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-
-        NavIconView chevron = new NavIconView(this, ICON_CHEVRON, withAlpha(COLOR_PRIMARY, 160));
-        btn.addView(chevron, new LinearLayout.LayoutParams(dp(18), dp(18)));
-
-        btn.setOnClickListener(view -> {
-            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            showAuthorsBottomSheet();
-        });
-        btn.setOnTouchListener((v, e) -> {
-            if (e.getAction() == MotionEvent.ACTION_DOWN)
-                v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(70).start();
-            else if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL)
-                v.animate().scaleX(1f).scaleY(1f).setDuration(110).start();
-            return false;
-        });
-
-        LinearLayout.LayoutParams btnLP = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(72));
-        FrameLayout wrapper = new FrameLayout(this);
-        wrapper.addView(btn, btnLP);
-        return wrapper;
-    }
-
-    private void showAuthorsBottomSheet() {
-        if (bottomSheetOverlay != null) rootLayout.removeView(bottomSheetOverlay);
-        bottomSheetOverlay = new FrameLayout(this);
-        bottomSheetOverlay.setBackgroundColor(0x88000000);
-        bottomSheetOverlay.setOnClickListener(view -> dismissBottomSheet());
-
-        // Contenedor principal del sheet
-        LinearLayout sheet = new LinearLayout(this);
-        sheet.setOrientation(LinearLayout.VERTICAL);
-        sheet.setPadding(dp(20), dp(14), dp(20), dp(32));
-        GradientDrawable sheetBg = new GradientDrawable();
-        sheetBg.setColor(COLOR_SURFACE);
-        sheetBg.setCornerRadii(new float[]{ dp(22), dp(22), dp(22), dp(22), 0, 0, 0, 0 });
-        sheetBg.setStroke(dp(1), withAlpha(COLOR_PRIMARY, 38));
-        sheet.setBackground(sheetBg);
-        sheet.setOnClickListener(view -> {});
-
-        // Handle bar centrado
-        LinearLayout handleRow = new LinearLayout(this);
-        handleRow.setGravity(Gravity.CENTER);
-        handleRow.setPadding(0, 0, 0, dp(14));
-        View handle = new View(this);
-        GradientDrawable handleBg = new GradientDrawable();
-        handleBg.setColor(withAlpha(COLOR_PRIMARY, 60));
-        handleBg.setCornerRadius(dp(3));
-        handle.setBackground(handleBg);
-        handleRow.addView(handle, new LinearLayout.LayoutParams(dp(38), dp(4)));
-        sheet.addView(handleRow, compactWrap());
-
-        // Encabezado: ícono + título + subtítulo
-        LinearLayout titleRow = new LinearLayout(this);
-        titleRow.setOrientation(LinearLayout.HORIZONTAL);
-        titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        titleRow.setPadding(0, 0, 0, dp(4));
-        FrameLayout titleIcon = new FrameLayout(this);
-        View tiBg = new View(this);
-        GradientDrawable tiBgD = new GradientDrawable();
-        tiBgD.setShape(GradientDrawable.OVAL);
-        tiBgD.setColor(withAlpha(COLOR_PRIMARY, 22));
-        tiBg.setBackground(tiBgD);
-        titleIcon.addView(tiBg, new FrameLayout.LayoutParams(dp(42), dp(42)));
-        NavIconView tiIcon = new NavIconView(this, ICON_INFO, COLOR_PRIMARY);
-        FrameLayout.LayoutParams tiLP = new FrameLayout.LayoutParams(dp(22), dp(22));
-        tiLP.gravity = Gravity.CENTER;
-        titleIcon.addView(tiIcon, tiLP);
-        titleRow.addView(titleIcon, new LinearLayout.LayoutParams(dp(42), dp(42)));
-        LinearLayout titleText = new LinearLayout(this);
-        titleText.setOrientation(LinearLayout.VERTICAL);
-        titleText.setPadding(dp(12), 0, 0, 0);
-        TextView sheetTitle = text("Equipo de desarrollo", 18, COLOR_TEXT, false);
-        sheetTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        titleText.addView(sheetTitle, compactWrap());
-        TextView sheetSub = text("Ingeniería Térmica", 11, withAlpha(COLOR_PRIMARY, 180), false);
-        titleText.addView(sheetSub, matchWrap(0, dp(2), 0, 0));
-        titleRow.addView(titleText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        sheet.addView(titleRow, matchWrap(0, 0, 0, dp(14)));
-
-        // Línea gradiente
-        GradientDrawable divLine = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-            new int[]{ withAlpha(COLOR_PRIMARY, 130), withAlpha(COLOR_SECONDARY, 70), 0x00000000 });
-        View div = new View(this);
-        div.setBackground(divLine);
-        sheet.addView(div, matchWrap(0, 0, 0, dp(14)));
-
-        // Cards de autores en ScrollView (por si no caben en pantalla)
-        ScrollView scroll = new ScrollView(this);
-        scroll.setVerticalScrollBarEnabled(false);
-        LinearLayout cardsContainer = new LinearLayout(this);
-        cardsContainer.setOrientation(LinearLayout.VERTICAL);
+        // Línea gradiente bajo el label
+        GradientDrawable divGrad = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{ withAlpha(COLOR_PRIMARY, 140), withAlpha(COLOR_SECONDARY, 70), 0x00000000 });
+        View divLine = new View(this);
+        divLine.setBackground(divGrad);
+        outer.addView(divLine, matchWrap(0, 0, 0, dp(14)));
 
         String[][] authors = {
             { "WM", "Wenceslao T. Medina Espinoza", "Coordinación del análisis térmico y validación de propiedades." },
@@ -1788,45 +1678,24 @@ public class MainActivity extends Activity {
             { "AL", "Alicia León Tacca", "Revisión académica, presentación y documentación del proyecto." }
         };
         int[] authorColors = { COLOR_PRIMARY, COLOR_SECONDARY, COLOR_ACCENT, COLOR_VIOLET };
-        final View[] authorCards = new View[authors.length];
 
         for (int i = 0; i < authors.length; i++) {
-            View authorCard = buildAuthorCard(authors[i][0], authors[i][1], authors[i][2], authorColors[i]);
-            LinearLayout.LayoutParams aLP = new LinearLayout.LayoutParams(
+            View card = buildAuthorCard(authors[i][0], authors[i][1], authors[i][2], authorColors[i]);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            if (i > 0) aLP.topMargin = dp(10);
-            cardsContainer.addView(authorCard, aLP);
-            authorCards[i] = authorCard;
-        }
-        scroll.addView(cardsContainer, new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        sheet.addView(scroll, matchWrap(0, 0, 0, 0));
-
-        // Agregar overlay al root PRIMERO
-        FrameLayout.LayoutParams sheetParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-        sheetParams.gravity = Gravity.BOTTOM;
-        bottomSheetOverlay.addView(sheet, sheetParams);
-        rootLayout.addView(bottomSheetOverlay, new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-
-        // Animar sheet desde abajo DESPUÉS de agregar al root
-        sheet.setTranslationY(dp(500));
-        sheet.animate().translationY(0f).setDuration(340)
-            .setInterpolator(new DecelerateInterpolator(1.5f)).start();
-        bottomSheetOverlay.setAlpha(0f);
-        bottomSheetOverlay.animate().alpha(1f).setDuration(220).start();
-
-        // Cards visibles desde el inicio — rootLayout.postDelayed garantiza adjunto
-        for (int i = 0; i < authorCards.length; i++) {
-            final View card = authorCards[i];
+            if (i > 0) lp.topMargin = dp(10);
+            outer.addView(card, lp);
+            final int delay = i * 70;
             card.setAlpha(0f);
-            card.setTranslationY(dp(20));
-            final long delay = 300L + i * 80L;
-            rootLayout.postDelayed(() -> card.animate()
-                .alpha(1f).translationY(0f).setDuration(260)
-                .setInterpolator(new DecelerateInterpolator()).start(), delay);
+            card.setTranslationY(dp(18));
+            card.post(() -> card.animate()
+                .alpha(1f).translationY(0f)
+                .setStartDelay(delay)
+                .setDuration(280)
+                .setInterpolator(new DecelerateInterpolator())
+                .start());
         }
+        return outer;
     }
 
     private View buildAuthorCard(String initials, String name, String contribution, int color) {
