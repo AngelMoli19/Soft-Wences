@@ -1108,7 +1108,7 @@ public class MainActivity extends Activity {
         resultsSummaryHeader = resultsSummaryHeaderView();
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
-            dp(74)
+            FrameLayout.LayoutParams.WRAP_CONTENT
         );
         params.gravity = Gravity.TOP;
         params.topMargin = systemStatusInsetTop + dp(24);
@@ -1189,7 +1189,8 @@ public class MainActivity extends Activity {
         TextView countLabel = text("prop.", 9, withAlpha(COLOR_TEXT, 150), false);
         countLabel.setGravity(Gravity.CENTER);
         countBadge.addView(countLabel, matchWrap(0, dp(2), 0, 0));
-        wrapper.addView(countBadge, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams badgeLP = new LinearLayout.LayoutParams(dp(68), LinearLayout.LayoutParams.WRAP_CONTENT);
+        wrapper.addView(countBadge, badgeLP);
         return wrapper;
     }
 
@@ -1684,7 +1685,7 @@ public class MainActivity extends Activity {
         TextView titleV = text("Conocer al equipo", 15, COLOR_TEXT, false);
         titleV.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         textBlock.addView(titleV, compactWrap());
-        TextView subV = text("4 autores · proyecto académico 2025", 11, COLOR_MUTED, false);
+        TextView subV = text("Conoce quiénes desarrollaron esta app", 11, COLOR_MUTED, false);
         textBlock.addView(subV, matchWrap(0, dp(3), 0, 0));
         btn.addView(textBlock, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
@@ -1762,7 +1763,7 @@ public class MainActivity extends Activity {
         TextView sheetTitle = text("Equipo de desarrollo", 18, COLOR_TEXT, false);
         sheetTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         titleText.addView(sheetTitle, compactWrap());
-        TextView sheetSub = text("Proyecto académico · 2025", 11, COLOR_MUTED, false);
+        TextView sheetSub = text("Ingeniería Térmica", 11, withAlpha(COLOR_PRIMARY, 180), false);
         titleText.addView(sheetSub, matchWrap(0, dp(2), 0, 0));
         titleRow.addView(titleText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         sheet.addView(titleRow, matchWrap(0, 0, 0, dp(14)));
@@ -1816,14 +1817,14 @@ public class MainActivity extends Activity {
         bottomSheetOverlay.setAlpha(0f);
         bottomSheetOverlay.animate().alpha(1f).setDuration(220).start();
 
-        // Animar cards con postDelayed DESPUÉS de que el overlay esté adjunto a la ventana
+        // Cards visibles desde el inicio — rootLayout.postDelayed garantiza adjunto
         for (int i = 0; i < authorCards.length; i++) {
             final View card = authorCards[i];
             card.setAlpha(0f);
-            card.setTranslationY(dp(14));
-            final long delay = 220L + i * 75L;
-            sheet.postDelayed(() -> card.animate()
-                .alpha(1f).translationY(0f).setDuration(240)
+            card.setTranslationY(dp(20));
+            final long delay = 300L + i * 80L;
+            rootLayout.postDelayed(() -> card.animate()
+                .alpha(1f).translationY(0f).setDuration(260)
                 .setInterpolator(new DecelerateInterpolator()).start(), delay);
         }
     }
@@ -1872,14 +1873,16 @@ public class MainActivity extends Activity {
     private View academicFooter() {
         LinearLayout footer = new LinearLayout(this);
         footer.setOrientation(LinearLayout.VERTICAL);
-        footer.setPadding(0, dp(12), 0, dp(12));
-        footer.addView(gradientDivider(), matchWrap(0, 0, 0, dp(12)));
-        TextView lineOne = text("Desarrollado como proyecto académico", 10, COLOR_MUTED, false);
-        lineOne.setGravity(Gravity.CENTER);
-        footer.addView(lineOne, compactWrap());
-        TextView lineTwo = text("Universidad · 2025", 10, withAlpha(COLOR_MUTED, 170), false);
-        lineTwo.setGravity(Gravity.CENTER);
-        footer.addView(lineTwo, compactWrap());
+        footer.setPadding(0, dp(10), 0, dp(16));
+        GradientDrawable divGrad = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{ 0x00000000, withAlpha(COLOR_PRIMARY, 70), withAlpha(COLOR_SECONDARY, 50), 0x00000000 });
+        View divLine = new View(this);
+        divLine.setBackground(divGrad);
+        footer.addView(divLine, matchWrap(0, 0, 0, dp(12)));
+        TextView versionLabel = text("TermoWences v1.0", 10, withAlpha(COLOR_PRIMARY, 180), false);
+        versionLabel.setGravity(Gravity.CENTER);
+        versionLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        footer.addView(versionLabel, compactWrap());
         return footer;
     }
 
@@ -2508,7 +2511,7 @@ public class MainActivity extends Activity {
             return;
         }
         View parent = (View) calculateCta.getParent();
-        parent.setBackground(rippleBackground(valid ? COLOR_PRIMARY : 0xFF1E2F2B, 0x33000000, dp(12)));
+        parent.setBackground(rippleBackground(valid ? COLOR_PRIMARY : COLOR_SURFACE_2, 0x33000000, dp(12)));
         calculateCta.setTextColor(valid ? 0xFF04342C : 0xFF4A6B62);
     }
 
@@ -2827,14 +2830,14 @@ public class MainActivity extends Activity {
     }
 
     private GradientDrawable formulaBackground() {
-        GradientDrawable drawable = rounded(0xFF1E2F2B, dp(6));
+        GradientDrawable drawable = rounded(COLOR_SURFACE_2, dp(6));
         drawable.setCornerRadii(new float[] {
             0, 0,
             dp(6), dp(6),
             dp(6), dp(6),
             0, 0
         });
-        drawable.setStroke(dp(1), 0xFF1E2F2B);
+        drawable.setStroke(dp(1), withAlpha(COLOR_BORDER, 60));
         return drawable;
     }
 
@@ -4123,9 +4126,9 @@ public class MainActivity extends Activity {
         paint.setColor(0xFF9FE1CB);
         int formulaTop = startY + 52;
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(0xFF1E2F2B);
+        paint.setColor(0xFF0D1628);
         canvas.drawRoundRect(left + 12, formulaTop, right - 12, formulaTop + 42, 5, 5, paint);
-        paint.setColor(0xFF0F6E56);
+        paint.setColor(COLOR_PRIMARY);
         canvas.drawRect(left + 12, formulaTop, left + 16, formulaTop + 42, paint);
         paint.setColor(0xFF9FE1CB);
         paint.setTypeface(Typeface.MONOSPACE);
@@ -5675,10 +5678,10 @@ public class MainActivity extends Activity {
             super(context);
             this.entry = entry;
             setOrientation(HORIZONTAL);
-            setBackground(rounded(0xFF1E2F2B, 0));
+            setBackground(rounded(COLOR_SURFACE_2, 0));
 
             accent = new View(context);
-            accent.setBackgroundColor(0xFF0F6E56);
+            accent.setBackgroundColor(COLOR_PRIMARY);
             addView(accent, new LinearLayout.LayoutParams(dp(3), LinearLayout.LayoutParams.MATCH_PARENT));
 
             FrameLayout frame = new FrameLayout(context);
@@ -5707,7 +5710,7 @@ public class MainActivity extends Activity {
             TextView evalText = text(String.format(Locale.US, "@ %.2f °C → %s", entry.temperature, evaluationValue(entry)), 10, COLOR_PRIMARY, false);
             evalText.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
             eval.addView(evalText, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-            TextView badge = text(unitBadge(entry), 9, 0xFF7FA89C, false);
+            TextView badge = text(unitBadge(entry), 9, COLOR_MUTED, false);
             badge.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
             badge.setPadding(dp(4), dp(1), dp(4), dp(1));
             badge.setBackground(rounded(withAlpha(COLOR_PRIMARY, 30), dp(3)));
@@ -5719,10 +5722,10 @@ public class MainActivity extends Activity {
             expandedRows = new LinearLayout(context);
             expandedRows.setOrientation(VERTICAL);
             expandedRows.setVisibility(GONE);
-            TextView deduction = text(formulaMeta(entry).deduction, 10, 0xFF7FA89C, false);
+            TextView deduction = text(formulaMeta(entry).deduction, 10, COLOR_MUTED, false);
             deduction.setLineSpacing(0, 1.15f);
             expandedRows.addView(deduction, matchWrap(0, dp(6), 0, 0));
-            TextView dimension = text(formulaMeta(entry).dimension, 11, 0xFF5DCAA5, false);
+            TextView dimension = text(formulaMeta(entry).dimension, 11, COLOR_SECONDARY, false);
             dimension.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
             expandedRows.addView(dimension, matchWrap(0, dp(4), 0, 0));
             content.addView(expandedRows, compactWrap());
@@ -5772,7 +5775,7 @@ public class MainActivity extends Activity {
             animateExpandedRows(expanded);
             chevronIcon.animate().rotation(expanded ? 180f : 0f).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
             copyIcon.animate().alpha(expanded ? 0f : 1f).setDuration(160).start();
-            ValueAnimator color = ValueAnimator.ofObject(new ArgbEvaluator(), expanded ? 0xFF0F6E56 : COLOR_PRIMARY, expanded ? COLOR_PRIMARY : 0xFF0F6E56);
+            ValueAnimator color = ValueAnimator.ofObject(new ArgbEvaluator(), expanded ? COLOR_SECONDARY : COLOR_PRIMARY, expanded ? COLOR_PRIMARY : COLOR_SECONDARY);
             color.setDuration(200);
             color.addUpdateListener(animation -> accent.setBackgroundColor((int) animation.getAnimatedValue()));
             color.start();
