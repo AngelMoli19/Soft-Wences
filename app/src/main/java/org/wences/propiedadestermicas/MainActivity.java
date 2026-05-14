@@ -70,16 +70,17 @@ import java.util.Locale;
 import java.util.Map;
 
 public class MainActivity extends Activity {
-    private static final int COLOR_BG = 0xFF0F1A18;
-    private static final int COLOR_SURFACE = 0xFF1A2724;
-    private static final int COLOR_SURFACE_2 = 0xFF1E2A28;
-    private static final int COLOR_BORDER = 0x6631C7A0;
-    private static final int COLOR_TEXT = 0xFFF0F0F0;
-    private static final int COLOR_MUTED = 0xBFF0F0F0;
-    private static final int COLOR_PRIMARY = 0xFF2DC89A;
-    private static final int COLOR_SECONDARY = 0xFF55AEB4;
+    private static final int COLOR_BG = 0xFF060C18;
+    private static final int COLOR_SURFACE = 0xFF0D1628;
+    private static final int COLOR_SURFACE_2 = 0xFF111E35;
+    private static final int COLOR_BORDER = 0x554B8EF7;
+    private static final int COLOR_TEXT = 0xFFEEF2FF;
+    private static final int COLOR_MUTED = 0xAAB0C8E4;
+    private static final int COLOR_PRIMARY = 0xFF4B8EF7;
+    private static final int COLOR_SECONDARY = 0xFF06C8D8;
     private static final int COLOR_ACCENT = 0xFFE8A930;
-    private static final int COLOR_DANGER = 0xFFB85C5C;
+    private static final int COLOR_DANGER = 0xFFEF4444;
+    private static final int COLOR_VIOLET = 0xFFAB7DF8;
     private static final int SCREEN_MENU = 0;
     private static final int SCREEN_CALCULATOR = 1;
     private static final int SCREEN_HISTORY = 2;
@@ -316,16 +317,16 @@ public class MainActivity extends Activity {
         setHomePagePadding();
         pendingRevealViews.clear();
         pageLayout.removeAllViews();
-        pageLayout.addView(homeHeader(), matchWrap(0, 0, 0, 16));
-        pageLayout.addView(heroSection(), matchWrap(dp(16), 0, dp(16), 14));
-        pageLayout.addView(menuSummary(), matchWrap(dp(16), 0, dp(16), 0));
+        pageLayout.addView(homeHeader(), matchWrap(0, 0, 0, 0));
+        pageLayout.addView(heroSection(), matchWrap(dp(16), dp(20), dp(16), 0));
+        pageLayout.addView(menuSummary(), matchWrap(dp(16), dp(16), dp(16), 0));
         animateIntro();
     }
 
     private FrameLayout buildTopNavBar() {
         FrameLayout bar = new FrameLayout(this);
         bar.setPadding(dp(14), 0, dp(14), 0);
-        bar.setBackground(rounded(0xFF0A1E1A, 0));
+        bar.setBackground(rounded(0xFF080F20, 0));
 
         View menu = topNavActionButton(false);
         menu.setOnClickListener(view -> {
@@ -749,72 +750,93 @@ public class MainActivity extends Activity {
     }
 
     private View menuSummary() {
-        LinearLayout content = section("Panel técnico", 22);
-        TextView subtitle = text("Trabaja por módulos con una interfaz enfocada en análisis térmico, reportes y lectura gráfica.", 14, COLOR_MUTED, false);
-        subtitle.setLineSpacing(0, 1.6f);
-        content.addView(subtitle, matchWrap(0, dp(6), 0, 14));
-        View metrics = metricsRow();
-        content.addView(metrics, matchWrap(0, 0, 0, 14));
-        View chipOne = technicalChip(ICON_DATABASE, "Base de consulta", "Agua, aire seco y vapor saturado con interpolación cúbica.");
-        View chipTwo = technicalChip(ICON_CURVE, "Lectura técnica", "Cada propiedad incluye valor, unidad, explicación y tendencia gráfica.");
-        View chipThree = technicalChip(ICON_REPORT, "Entrega PDF", "El reporte PDF conserva el orden de resultados y gráficos por propiedad.");
-        content.addView(chipOne);
-        content.addView(gradientDivider(), matchWrap(0, dp(10), 0, dp(2)));
-        content.addView(chipTwo);
-        content.addView(gradientDivider(), matchWrap(0, dp(10), 0, dp(2)));
-        content.addView(chipThree);
-        content.post(() -> {
-            animateRevealUp(metrics, 0);
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
+
+        TextView sectionLabel = text("CARACTERÍSTICAS", 10, withAlpha(COLOR_PRIMARY, 200), false);
+        sectionLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        sectionLabel.setLetterSpacing(0.12f);
+        outer.addView(sectionLabel, matchWrap(dp(2), 0, 0, dp(14)));
+
+        View metricsView = metricsRow();
+        outer.addView(metricsView, matchWrap(0, 0, 0, dp(16)));
+
+        View chipOne = technicalChip(ICON_DATABASE, "Base de consulta", "Agua, aire seco y vapor saturado con interpolación cúbica.", COLOR_PRIMARY);
+        View chipTwo = technicalChip(ICON_CURVE, "Lectura técnica", "Valor, unidad, fórmula, explicación y tendencia por propiedad.", COLOR_SECONDARY);
+        View chipThree = technicalChip(ICON_REPORT, "Reporte PDF", "Exporta resultados con gráficos y fórmulas listos para revisión.", COLOR_VIOLET);
+
+        outer.addView(chipOne);
+        outer.addView(chipTwo, matchWrap(0, dp(10), 0, 0));
+        outer.addView(chipThree, matchWrap(0, dp(10), 0, 0));
+
+        outer.post(() -> {
+            animateRevealUp(metricsView, 0);
             checkScrollRevealViews();
         });
-        return card(content);
+        return outer;
     }
 
     private View metricsRow() {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(metric("3", "fluidos"), weightedButton(0, 0, 5, 0));
-        row.addView(metric("PDF", "reporte"), weightedButton(5, 0, 5, 0));
-        row.addView(metric("ƒ", "curvas"), weightedButton(5, 0, 0, 0));
+
+        row.addView(metric("3", "fluidos", COLOR_PRIMARY), weightedButton(0, 0, dp(8), 0));
+        row.addView(metric("24", "propiedades", COLOR_SECONDARY), weightedButton(0, 0, dp(8), 0));
+        row.addView(metric("PDF", "reporte", COLOR_VIOLET), weightedButton(0, 0, 0, 0));
         return row;
     }
 
-    private View metric(String value, String label) {
+    private View metric(String value, String label, int color) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
-        box.setPadding(dp(8), dp(10), dp(8), dp(10));
-        box.setBackground(rippleBackground(COLOR_PRIMARY, withAlpha(COLOR_ACCENT, 70), dp(24)));
+        box.setPadding(dp(8), dp(14), dp(8), dp(14));
+        GradientDrawable metricBg = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{ withAlpha(color, 30), withAlpha(color, 12) }
+        );
+        metricBg.setCornerRadius(dp(14));
+        metricBg.setStroke(dp(1), withAlpha(color, 55));
+        box.setBackground(metricBg);
         box.setElevation(dp(4));
         box.setOnClickListener(view -> view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP));
-        TextView valueView = text(value, 18, 0xFF06120F, true);
+        TextView valueView = text(value, 20, color, true);
         valueView.setGravity(Gravity.CENTER);
         box.addView(valueView, compactWrap());
-        TextView labelView = text(label, 11, 0xCC06120F, false);
+        TextView labelView = text(label, 10, withAlpha(COLOR_TEXT, 160), false);
         labelView.setGravity(Gravity.CENTER);
-        box.addView(labelView, compactWrap());
+        box.addView(labelView, matchWrap(0, dp(3), 0, 0));
         return box;
     }
 
-    private View technicalChip(int iconType, String title, String detail) {
+    private View technicalChip(int iconType, String title, String detail, int color) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setPadding(0, 0, dp(14), 0);
-        card.setBackground(rounded(COLOR_SURFACE_2, dp(14)));
+        GradientDrawable chipBg = new GradientDrawable();
+        chipBg.setColor(COLOR_SURFACE_2);
+        chipBg.setCornerRadius(dp(14));
+        chipBg.setStroke(dp(1), withAlpha(color, 45));
+        card.setBackground(chipBg);
         card.setElevation(dp(5));
 
         View accent = new View(this);
-        accent.setBackgroundColor(COLOR_PRIMARY);
-        card.addView(accent, new LinearLayout.LayoutParams(dp(3), dp(76)));
+        GradientDrawable accentBg = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{ color, withAlpha(color, 140) }
+        );
+        accentBg.setCornerRadii(new float[]{ dp(14), dp(14), 0, 0, 0, 0, dp(14), dp(14) });
+        accent.setBackground(accentBg);
+        card.addView(accent, new LinearLayout.LayoutParams(dp(3), dp(72)));
 
         LinearLayout chip = new LinearLayout(this);
         chip.setOrientation(LinearLayout.HORIZONTAL);
         chip.setGravity(Gravity.CENTER_VERTICAL);
         chip.setPadding(dp(12), dp(12), 0, dp(12));
 
-        NavIconView icon = new NavIconView(this, iconType, COLOR_PRIMARY);
-        icon.setBackground(rounded(withAlpha(COLOR_PRIMARY, 18), dp(12)));
+        NavIconView icon = new NavIconView(this, iconType, color);
+        icon.setBackground(rounded(withAlpha(color, 22), dp(12)));
         chip.addView(icon, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         LinearLayout textBlock = new LinearLayout(this);
@@ -823,15 +845,14 @@ public class MainActivity extends Activity {
         TextView titleView = text(title, 14, COLOR_TEXT, false);
         titleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         textBlock.addView(titleView, compactWrap());
-        TextView detailView = text(detail, 13, 0xFF9DB5B0, false);
-        detailView.setLineSpacing(0, 1.18f);
-        textBlock.addView(detailView, matchWrap(0, dp(2), 0, 0));
+        TextView detailView = text(detail, 12, COLOR_MUTED, false);
+        detailView.setLineSpacing(0, 1.22f);
+        textBlock.addView(detailView, matchWrap(0, dp(3), 0, 0));
         chip.addView(textBlock, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         card.addView(chip, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
-        View wrapper = wrapWithMargin(card, 0, dp(8), 0, 0);
-        registerScrollReveal(wrapper);
-        return wrapper;
+        registerScrollReveal(card);
+        return card;
     }
 
     private View gradientDivider() {
@@ -1155,51 +1176,173 @@ public class MainActivity extends Activity {
     }
 
     private View heroSection() {
-        LinearLayout hero = new LinearLayout(this);
-        hero.setOrientation(LinearLayout.VERTICAL);
-        hero.setPadding(dp(18), dp(18), dp(18), dp(16));
-        hero.setBackground(gradient(0xFF0D2B25, 0xFF1A4A3C, dp(16)));
-        hero.setElevation(dp(6));
+        LinearLayout section = new LinearLayout(this);
+        section.setOrientation(LinearLayout.VERTICAL);
 
-        EngineeringHeroVisual visual = new EngineeringHeroVisual(this);
-        visual.setBackground(roundedStroke(0x2210181B, 0x334A7771, dp(8)));
-        hero.addView(visual, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(174)));
+        TextView sectionLabel = text("ACCESO RÁPIDO", 10, withAlpha(COLOR_PRIMARY, 200), false);
+        sectionLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        sectionLabel.setLetterSpacing(0.12f);
+        section.addView(sectionLabel, matchWrap(dp(2), 0, 0, dp(12)));
 
-        TextView intro = text(
-            "Consulta propiedades térmicas con resultados trazables, gráficos por propiedad y reportes listos para revisión técnica.",
-            15,
-            COLOR_TEXT,
-            false
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+
+        View calcCard = quickActionCard(ICON_CURVE, "Calcular", "Agua · Aire · Vapor", COLOR_PRIMARY, SCREEN_CALCULATOR);
+        View histCard = quickActionCard(ICON_HISTORY, "Historial", "Consultas previas", COLOR_SECONDARY, SCREEN_HISTORY);
+        View infoCard = quickActionCard(ICON_INFO, "Acerca de", "Info del app", COLOR_VIOLET, SCREEN_ABOUT);
+
+        LinearLayout.LayoutParams cardParams1 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        LinearLayout.LayoutParams cardParams2 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        LinearLayout.LayoutParams cardParams3 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        cardParams1.setMargins(0, 0, dp(8), 0);
+        cardParams2.setMargins(0, 0, dp(8), 0);
+        row.addView(calcCard, cardParams1);
+        row.addView(histCard, cardParams2);
+        row.addView(infoCard, cardParams3);
+
+        section.addView(row, compactWrap());
+        return section;
+    }
+
+    private View quickActionCard(int iconType, String title, String subtitle, int color, int targetScreen) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setPadding(dp(10), dp(18), dp(10), dp(16));
+
+        GradientDrawable cardBg = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{ withAlpha(color, 28), 0xFF0D1628 }
         );
-        intro.setLineSpacing(0, 1.08f);
-        hero.addView(intro, matchWrap(0, dp(14), 0, 0));
-        return hero;
+        cardBg.setCornerRadius(dp(16));
+        cardBg.setStroke(dp(1), withAlpha(color, 65));
+        card.setBackground(cardBg);
+        card.setElevation(dp(5));
+
+        FrameLayout iconCircle = new FrameLayout(this);
+        View iconBg = new View(this);
+        GradientDrawable circleBg = new GradientDrawable();
+        circleBg.setShape(GradientDrawable.OVAL);
+        circleBg.setColor(withAlpha(color, 30));
+        circleBg.setStroke(dp(1), withAlpha(color, 55));
+        iconBg.setBackground(circleBg);
+        iconCircle.addView(iconBg, new FrameLayout.LayoutParams(dp(46), dp(46)));
+        NavIconView icon = new NavIconView(this, iconType, color);
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(24), dp(24));
+        iconParams.gravity = Gravity.CENTER;
+        iconCircle.addView(icon, iconParams);
+        card.addView(iconCircle, new LinearLayout.LayoutParams(dp(46), dp(46)));
+
+        TextView titleView = text(title, 13, COLOR_TEXT, false);
+        titleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        titleView.setGravity(Gravity.CENTER);
+        card.addView(titleView, matchWrap(0, dp(10), 0, 0));
+
+        TextView subtitleView = text(subtitle, 10, withAlpha(COLOR_TEXT, 130), false);
+        subtitleView.setGravity(Gravity.CENTER);
+        subtitleView.setLineSpacing(0, 1.2f);
+        card.addView(subtitleView, matchWrap(0, dp(3), 0, 0));
+
+        card.setOnClickListener(view -> {
+            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            view.animate().scaleX(0.95f).scaleY(0.95f).setDuration(80).withEndAction(() ->
+                view.animate().scaleX(1f).scaleY(1f).setDuration(100).withEndAction(() -> {
+                    if (targetScreen == SCREEN_CALCULATOR) showCalculatorScreen();
+                    else if (targetScreen == SCREEN_HISTORY) showHistoryScreen();
+                    else showAboutScreen();
+                }).start()
+            ).start();
+        });
+        animateRevealUp(card, 100);
+        return card;
     }
 
     private View homeHeader() {
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(20), systemStatusInsetTop + dp(16), dp(20), 0);
-        header.setBackgroundColor(0x00000000);
+        FrameLayout outer = new FrameLayout(this);
+        GradientDrawable headerBg = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{ 0xFF0A1530, 0xFF060C18 }
+        );
+        outer.setBackground(headerBg);
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setGravity(Gravity.CENTER_HORIZONTAL);
+        content.setPadding(dp(24), systemStatusInsetTop + dp(32), dp(24), dp(32));
+
+        // Logo con anillo de brillo
+        FrameLayout logoFrame = new FrameLayout(this);
+        View outerGlow = new View(this);
+        GradientDrawable outerGlowBg = new GradientDrawable();
+        outerGlowBg.setShape(GradientDrawable.OVAL);
+        outerGlowBg.setColor(withAlpha(COLOR_PRIMARY, 18));
+        outerGlowBg.setStroke(dp(1), withAlpha(COLOR_PRIMARY, 50));
+        outerGlow.setBackground(outerGlowBg);
+        FrameLayout.LayoutParams outerGlowParams = new FrameLayout.LayoutParams(dp(76), dp(76));
+        outerGlowParams.gravity = Gravity.CENTER;
+        logoFrame.addView(outerGlow, outerGlowParams);
+
+        View innerGlow = new View(this);
+        GradientDrawable innerGlowBg = new GradientDrawable();
+        innerGlowBg.setShape(GradientDrawable.OVAL);
+        innerGlowBg.setColor(withAlpha(COLOR_SECONDARY, 14));
+        innerGlow.setBackground(innerGlowBg);
+        FrameLayout.LayoutParams innerGlowParams = new FrameLayout.LayoutParams(dp(62), dp(62));
+        innerGlowParams.gravity = Gravity.CENTER;
+        logoFrame.addView(innerGlow, innerGlowParams);
 
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.logo_circular_dark);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         logo.setContentDescription("Logo TermoWences");
-        header.addView(logo, new LinearLayout.LayoutParams(dp(44), dp(44)));
-        animateScaleIn(logo, 40);
+        FrameLayout.LayoutParams logoParams = new FrameLayout.LayoutParams(dp(50), dp(50));
+        logoParams.gravity = Gravity.CENTER;
+        logoFrame.addView(logo, logoParams);
+        content.addView(logoFrame, new LinearLayout.LayoutParams(dp(76), dp(76)));
+        animateScaleIn(logoFrame, 40);
 
-        LinearLayout copy = new LinearLayout(this);
-        copy.setOrientation(LinearLayout.VERTICAL);
-        copy.setPadding(dp(12), 0, 0, 0);
-        TextView title = text("TermoWences", 20, COLOR_TEXT, false);
+        // Nombre de la app
+        TextView title = text("TermoWences", 28, COLOR_TEXT, false);
         title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        copy.addView(title, compactWrap());
-        TextView subtitle = text("Propiedades térmicas para ingeniería", 12, 0xFF7FA89C, false);
-        copy.addView(subtitle, matchWrap(0, dp(2), 0, 0));
-        header.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        return header;
+        title.setGravity(Gravity.CENTER);
+        content.addView(title, matchWrap(0, dp(16), 0, 0));
+
+        // Badge de versión
+        TextView badge = text("Ingeniería Térmica  ·  v1.0", 11, COLOR_PRIMARY, false);
+        badge.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        badge.setGravity(Gravity.CENTER);
+        badge.setPadding(dp(16), dp(5), dp(16), dp(5));
+        GradientDrawable badgeBg = new GradientDrawable();
+        badgeBg.setColor(withAlpha(COLOR_PRIMARY, 18));
+        badgeBg.setStroke(dp(1), withAlpha(COLOR_PRIMARY, 55));
+        badgeBg.setCornerRadius(dp(20));
+        badge.setBackground(badgeBg);
+        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        badgeParams.topMargin = dp(10);
+        content.addView(badge, badgeParams);
+
+        // Descripción
+        TextView desc = text("Consulta propiedades térmicas con resultados\ntrazables y reportes para revisión técnica.", 13, COLOR_MUTED, false);
+        desc.setGravity(Gravity.CENTER);
+        desc.setLineSpacing(0, 1.45f);
+        content.addView(desc, matchWrap(0, dp(18), 0, 0));
+
+        // Línea gradiente decorativa
+        GradientDrawable lineGrad = new GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{ 0x00000000, COLOR_SECONDARY, COLOR_PRIMARY, 0x00000000 }
+        );
+        View line = new View(this);
+        line.setBackground(lineGrad);
+        LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+        lineParams.topMargin = dp(24);
+        content.addView(line, lineParams);
+
+        outer.addView(content, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        return outer;
     }
 
     private View aboutHeroCard() {
