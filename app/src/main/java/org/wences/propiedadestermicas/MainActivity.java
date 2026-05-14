@@ -376,21 +376,28 @@ public class MainActivity extends Activity {
         LinearLayout container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
         container.setGravity(Gravity.BOTTOM);
-        container.setPadding(dp(8), 0, dp(8), bottomNavInsetBottom);
+        container.setPadding(dp(10), 0, dp(10), bottomNavInsetBottom);
         container.setBackground(bottomNavBackground());
+
+        // Línea glow gradiente en el tope del nav
+        View glowLine = new View(this);
+        GradientDrawable glowBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{ 0x00000000, withAlpha(COLOR_PRIMARY, 110), withAlpha(COLOR_SECONDARY, 90), 0x00000000 });
+        glowLine.setBackground(glowBg);
+        container.addView(glowLine, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
 
         bottomNavRow = new LinearLayout(this);
         bottomNavRow.setOrientation(LinearLayout.HORIZONTAL);
         bottomNavRow.setGravity(Gravity.CENTER);
-        bottomNavRow.addView(bottomNavItem(ICON_HOME, "Inicio", SCREEN_MENU), new LinearLayout.LayoutParams(0, dp(64), 1));
-        bottomNavRow.addView(bottomNavItem(ICON_CURVE, "Calcular", SCREEN_CALCULATOR), new LinearLayout.LayoutParams(0, dp(64), 1));
-        bottomNavRow.addView(bottomNavItem(ICON_HISTORY, "Historial", SCREEN_HISTORY), new LinearLayout.LayoutParams(0, dp(64), 1));
-        bottomNavRow.addView(bottomNavItem(ICON_INFO, "Acerca de", SCREEN_ABOUT), new LinearLayout.LayoutParams(0, dp(64), 1));
-        container.addView(bottomNavRow, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(64)));
+        bottomNavRow.addView(bottomNavItem(ICON_HOME, "Inicio", SCREEN_MENU), new LinearLayout.LayoutParams(0, dp(68), 1));
+        bottomNavRow.addView(bottomNavItem(ICON_CURVE, "Calcular", SCREEN_CALCULATOR), new LinearLayout.LayoutParams(0, dp(68), 1));
+        bottomNavRow.addView(bottomNavItem(ICON_HISTORY, "Historial", SCREEN_HISTORY), new LinearLayout.LayoutParams(0, dp(68), 1));
+        bottomNavRow.addView(bottomNavItem(ICON_INFO, "Acerca de", SCREEN_ABOUT), new LinearLayout.LayoutParams(0, dp(68), 1));
+        container.addView(bottomNavRow, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(68)));
 
         FrameLayout.LayoutParams containerParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
-            dp(64) + bottomNavInsetBottom
+            dp(68) + bottomNavInsetBottom
         );
         containerParams.gravity = Gravity.BOTTOM;
         shell.addView(container, containerParams);
@@ -423,10 +430,10 @@ public class MainActivity extends Activity {
             return;
         }
         View container = bottomNavBar.getChildAt(0);
-        container.setPadding(dp(8), 0, dp(8), bottomNavInsetBottom);
+        container.setPadding(dp(10), 0, dp(10), bottomNavInsetBottom);
         FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) container.getLayoutParams();
         if (params != null) {
-            params.height = dp(64) + bottomNavInsetBottom;
+            params.height = dp(68) + bottomNavInsetBottom;
             container.setLayoutParams(params);
         }
     }
@@ -439,14 +446,15 @@ public class MainActivity extends Activity {
     }
 
     private GradientDrawable bottomNavBackground() {
-        GradientDrawable drawable = rounded(0xFF0A1E1A, 0);
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(0xFF080D1C);
         drawable.setCornerRadii(new float[] {
-            dp(20), dp(20),
-            dp(20), dp(20),
+            dp(24), dp(24),
+            dp(24), dp(24),
             0, 0,
             0, 0
         });
-        drawable.setStroke(dp(1), 0xFF1D3530);
+        drawable.setStroke(dp(1), withAlpha(COLOR_PRIMARY, 28));
         return drawable;
     }
 
@@ -466,7 +474,7 @@ public class MainActivity extends Activity {
             navBar.setTranslationY(0f);
             navBar.removeAllViews();
             navBar.setPadding(dp(14), 0, dp(14), 0);
-            navBar.setBackground(rounded(0xFF0A1E1A, 0));
+            navBar.setBackground(rounded(0xFF080D1C, 0));
             navBar.setElevation(0);
 
             View left = resultsMode ? topBackButton() : topNavActionButton(false);
@@ -503,11 +511,11 @@ public class MainActivity extends Activity {
 
     private void addNavBottomBorder(FrameLayout bar) {
         View border = new View(this);
-        border.setBackgroundColor(0xFF1D3530);
+        GradientDrawable borderBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{ 0x00000000, withAlpha(COLOR_PRIMARY, 80), withAlpha(COLOR_SECONDARY, 60), 0x00000000 });
+        border.setBackground(borderBg);
         FrameLayout.LayoutParams borderParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            dp(1)
-        );
+            FrameLayout.LayoutParams.MATCH_PARENT, dp(1));
         borderParams.gravity = Gravity.BOTTOM;
         bar.addView(border, borderParams);
     }
@@ -525,9 +533,9 @@ public class MainActivity extends Activity {
         back.setGravity(Gravity.CENTER_VERTICAL);
         back.setPadding(0, 0, dp(8), 0);
         back.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(40)));
-        BackArrowView arrow = new BackArrowView(this, 0xFF7FA89C, false);
+        BackArrowView arrow = new BackArrowView(this, COLOR_MUTED, false);
         back.addView(arrow, new LinearLayout.LayoutParams(dp(24), dp(44)));
-        TextView label = text("Calcular", 12, 0xFF7FA89C, false);
+        TextView label = text("Calcular", 12, COLOR_MUTED, false);
         label.setGravity(Gravity.CENTER_VERTICAL);
         back.addView(label, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)));
         back.setOnClickListener(view -> {
@@ -599,7 +607,7 @@ public class MainActivity extends Activity {
         item.setOrientation(LinearLayout.HORIZONTAL);
         item.setGravity(Gravity.CENTER_VERTICAL);
         item.setPadding(0, 0, dp(14), 0);
-        item.setBackground(rippleBackground(selected ? 0xFF1D4A3C : 0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(40)));
+        item.setBackground(rippleBackground(selected ? withAlpha(COLOR_PRIMARY, 22) : 0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(40)));
 
         View activeBar = new View(this);
         activeBar.setBackgroundColor(selected ? COLOR_PRIMARY : 0x00000000);
@@ -788,9 +796,14 @@ public class MainActivity extends Activity {
     private View metricsRow() {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(metric(3, "fluidos", COLOR_PRIMARY), weightedButton(0, 0, dp(8), 0));
-        row.addView(metric(24, "propiedades", COLOR_SECONDARY), weightedButton(0, 0, dp(8), 0));
-        row.addView(metricText("PDF", "reporte", COLOR_VIOLET), weightedButton(0, 0, 0, 0));
+        LinearLayout.LayoutParams p1 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        LinearLayout.LayoutParams p2 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        LinearLayout.LayoutParams p3 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        p1.setMargins(0, 0, dp(8), 0);
+        p2.setMargins(0, 0, dp(8), 0);
+        row.addView(metric(3, "fluidos", COLOR_PRIMARY), p1);
+        row.addView(metric(24, "propiedades", COLOR_SECONDARY), p2);
+        row.addView(metricText("PDF", "reporte", COLOR_VIOLET), p3);
         return row;
     }
 
@@ -798,26 +811,33 @@ public class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
-        box.setPadding(dp(8), dp(16), dp(8), dp(16));
+        box.setPadding(dp(10), dp(18), dp(10), dp(14));
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{ withAlpha(color, 32), withAlpha(color, 14) });
+            new int[]{ withAlpha(color, 55), withAlpha(color, 28) });
         bg.setCornerRadius(dp(14));
-        bg.setStroke(dp(1), withAlpha(color, 58));
+        bg.setStroke(dp(1), withAlpha(color, 80));
         box.setBackground(bg);
         box.setElevation(dp(4));
-        TextView valueView = text("0", 22, color, true);
+
+        TextView valueView = text(String.valueOf(target), 24, COLOR_TEXT, true);
         valueView.setGravity(Gravity.CENTER);
         box.addView(valueView, compactWrap());
-        TextView labelView = text(label, 10, withAlpha(COLOR_TEXT, 160), false);
+
+        TextView labelView = text(label, 10, withAlpha(color, 220), false);
         labelView.setGravity(Gravity.CENTER);
+        labelView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         box.addView(labelView, matchWrap(0, dp(4), 0, 0));
-        box.post(() -> {
+
+        // Animación counter con postDelayed para garantizar vista adjunta
+        box.postDelayed(() -> {
+            valueView.setText("0");
             ValueAnimator counter = ValueAnimator.ofInt(0, target);
-            counter.setDuration(900);
+            counter.setDuration(850);
+            counter.setStartDelay(150);
             counter.setInterpolator(new DecelerateInterpolator());
             counter.addUpdateListener(a -> valueView.setText(String.valueOf((int) a.getAnimatedValue())));
             counter.start();
-        });
+        }, 120);
         return box;
     }
 
@@ -825,18 +845,21 @@ public class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
-        box.setPadding(dp(8), dp(16), dp(8), dp(16));
+        box.setPadding(dp(10), dp(18), dp(10), dp(14));
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{ withAlpha(color, 32), withAlpha(color, 14) });
+            new int[]{ withAlpha(color, 55), withAlpha(color, 28) });
         bg.setCornerRadius(dp(14));
-        bg.setStroke(dp(1), withAlpha(color, 58));
+        bg.setStroke(dp(1), withAlpha(color, 80));
         box.setBackground(bg);
         box.setElevation(dp(4));
-        TextView valueView = text(value, 22, color, true);
+
+        TextView valueView = text(value, 24, COLOR_TEXT, true);
         valueView.setGravity(Gravity.CENTER);
         box.addView(valueView, compactWrap());
-        TextView labelView = text(label, 10, withAlpha(COLOR_TEXT, 160), false);
+
+        TextView labelView = text(label, 10, withAlpha(color, 220), false);
         labelView.setGravity(Gravity.CENTER);
+        labelView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         box.addView(labelView, matchWrap(0, dp(4), 0, 0));
         return box;
     }
@@ -1096,41 +1119,77 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout resultsSummaryHeaderView() {
+        int fluidColor = colorForTable(lastTableKey);
         LinearLayout wrapper = new LinearLayout(this);
         wrapper.setOrientation(LinearLayout.HORIZONTAL);
         wrapper.setGravity(Gravity.CENTER_VERTICAL);
         wrapper.setPadding(dp(14), dp(10), dp(14), dp(10));
-        wrapper.setBackground(roundedStroke(0xFF0D2B24, 0xFF1D4A3C, dp(12)));
-        wrapper.setElevation(dp(3));
+        GradientDrawable wBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{ withAlpha(fluidColor, 35), withAlpha(fluidColor, 14) });
+        wBg.setCornerRadius(dp(14));
+        wBg.setStroke(dp(1), withAlpha(fluidColor, 60));
+        wrapper.setBackground(wBg);
+        wrapper.setElevation(dp(4));
 
+        // Ícono del fluido
+        FrameLayout iconCircle = new FrameLayout(this);
+        View iconBg = new View(this);
+        GradientDrawable iBg = new GradientDrawable();
+        iBg.setShape(GradientDrawable.OVAL);
+        iBg.setColor(withAlpha(fluidColor, 28));
+        iBg.setStroke(dp(1), withAlpha(fluidColor, 55));
+        iconBg.setBackground(iBg);
+        iconCircle.addView(iconBg, new FrameLayout.LayoutParams(dp(44), dp(44)));
+        NavIconView fluidIcon = new NavIconView(this, iconForTable(lastTableKey), fluidColor);
+        FrameLayout.LayoutParams iLP = new FrameLayout.LayoutParams(dp(24), dp(24));
+        iLP.gravity = Gravity.CENTER;
+        iconCircle.addView(fluidIcon, iLP);
+        wrapper.addView(iconCircle, new LinearLayout.LayoutParams(dp(44), dp(44)));
+
+        // Bloque central: nombre + temperatura + hora
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
-        TextView label = text("FLUIDO ANALIZADO", 9, 0xFF7FA89C, false);
-        label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        left.addView(label, compactWrap());
-        TextView value = text(summaryFluidText(), 15, COLOR_PRIMARY, false);
-        value.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        left.addView(value, matchWrap(0, dp(2), 0, 0));
-        LinearLayout time = new LinearLayout(this);
-        time.setOrientation(LinearLayout.HORIZONTAL);
-        time.setGravity(Gravity.CENTER_VERTICAL);
-        time.addView(new NavIconView(this, ICON_HISTORY, 0xFF3A5A52), new LinearLayout.LayoutParams(dp(13), dp(13)));
-        TextView timeText = text(" " + resultTimestamp(), 10, 0xFF3A5A52, false);
-        time.addView(timeText, compactWrap());
-        left.addView(time, matchWrap(0, dp(2), 0, 0));
+        left.setPadding(dp(12), 0, 0, 0);
+
+        TableSpec spec = specForKey(lastTableKey);
+        String fluidName = spec == null ? "Fluido" : spec.title.toUpperCase(Locale.US);
+        TextView nameLabel = text(fluidName, 9, withAlpha(fluidColor, 200), false);
+        nameLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        nameLabel.setLetterSpacing(0.1f);
+        left.addView(nameLabel, compactWrap());
+
+        String tempStr = Double.isNaN(lastTemperature) ? "—" :
+            String.format(Locale.US, "%.2f °C", lastTemperature);
+        TextView tempView = text(tempStr, 16, COLOR_TEXT, false);
+        tempView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        left.addView(tempView, matchWrap(0, dp(2), 0, 0));
+
+        LinearLayout timeRow = new LinearLayout(this);
+        timeRow.setOrientation(LinearLayout.HORIZONTAL);
+        timeRow.setGravity(Gravity.CENTER_VERTICAL);
+        timeRow.addView(new NavIconView(this, ICON_HISTORY, COLOR_MUTED), new LinearLayout.LayoutParams(dp(12), dp(12)));
+        TextView timeText = text("  " + resultTimestamp(), 10, COLOR_MUTED, false);
+        timeRow.addView(timeText, compactWrap());
+        left.addView(timeRow, matchWrap(0, dp(3), 0, 0));
         wrapper.addView(left, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
-        LinearLayout count = new LinearLayout(this);
-        count.setOrientation(LinearLayout.VERTICAL);
-        count.setGravity(Gravity.CENTER);
-        count.setPadding(dp(10), dp(6), dp(10), dp(6));
-        count.setBackground(rounded(0xFF1D4A3C, dp(8)));
-        count.addView(text("propiedades", 9, 0xFF7FA89C, false), compactWrap());
-        TextView number = text(String.valueOf(lastPdfEntries.size()), 18, COLOR_PRIMARY, false);
-        number.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        number.setGravity(Gravity.CENTER);
-        count.addView(number, compactWrap());
-        wrapper.addView(count, new LinearLayout.LayoutParams(dp(86), LinearLayout.LayoutParams.WRAP_CONTENT));
+        // Badge derecho: número de propiedades
+        LinearLayout countBadge = new LinearLayout(this);
+        countBadge.setOrientation(LinearLayout.VERTICAL);
+        countBadge.setGravity(Gravity.CENTER);
+        countBadge.setPadding(dp(12), dp(8), dp(12), dp(8));
+        GradientDrawable cBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{ withAlpha(fluidColor, 32), withAlpha(fluidColor, 15) });
+        cBg.setCornerRadius(dp(10));
+        cBg.setStroke(dp(1), withAlpha(fluidColor, 55));
+        countBadge.setBackground(cBg);
+        TextView countNum = text(String.valueOf(lastPdfEntries.size()), 20, fluidColor, true);
+        countNum.setGravity(Gravity.CENTER);
+        countBadge.addView(countNum, compactWrap());
+        TextView countLabel = text("prop.", 9, withAlpha(COLOR_TEXT, 150), false);
+        countLabel.setGravity(Gravity.CENTER);
+        countBadge.addView(countLabel, matchWrap(0, dp(2), 0, 0));
+        wrapper.addView(countBadge, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         return wrapper;
     }
 
@@ -1334,11 +1393,43 @@ public class MainActivity extends Activity {
             pulse.start();
         });
 
-        // Nombre de la app
-        TextView title = text("TermoWences", 28, COLOR_TEXT, false);
+        // Nombre de la app con gradiente animado
+        TextView title = text("TermoWences", 30, COLOR_TEXT, false);
         title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         title.setGravity(Gravity.CENTER);
-        content.addView(title, matchWrap(0, dp(16), 0, 0));
+        title.setLetterSpacing(0.04f);
+        content.addView(title, matchWrap(0, dp(18), 0, 0));
+        // Gradiente estático inicial
+        title.post(() -> {
+            float w = title.getWidth();
+            if (w > 0) {
+                title.getPaint().setShader(new LinearGradient(0, 0, w, 0,
+                    new int[]{ COLOR_PRIMARY, COLOR_TEXT, COLOR_SECONDARY },
+                    new float[]{ 0f, 0.45f, 1f }, Shader.TileMode.CLAMP));
+                title.invalidate();
+            }
+        });
+        // Shimmer continuo sobre el nombre
+        title.post(() -> {
+            ValueAnimator shimmer = ValueAnimator.ofFloat(0f, 1f);
+            shimmer.setDuration(3200);
+            shimmer.setRepeatCount(ValueAnimator.INFINITE);
+            shimmer.setRepeatMode(ValueAnimator.RESTART);
+            shimmer.setInterpolator(new LinearInterpolator());
+            shimmer.addUpdateListener(a -> {
+                float p = (float) a.getAnimatedValue();
+                float w2 = title.getWidth();
+                if (w2 > 0) {
+                    float cx = -w2 + p * w2 * 2.8f;
+                    title.getPaint().setShader(new LinearGradient(cx, 0, cx + w2, 0,
+                        new int[]{ COLOR_PRIMARY, withAlpha(COLOR_TEXT, 230),
+                                   COLOR_SECONDARY, withAlpha(COLOR_PRIMARY, 200) },
+                        new float[]{ 0f, 0.35f, 0.65f, 1f }, Shader.TileMode.CLAMP));
+                    title.invalidate();
+                }
+            });
+            shimmer.start();
+        });
 
         // Descripción
         TextView desc = text("Consulta propiedades térmicas con resultados\ntrazables y reportes para revisión técnica.", 13, COLOR_MUTED, false);
@@ -1625,9 +1716,10 @@ public class MainActivity extends Activity {
         bottomSheetOverlay.setBackgroundColor(0x88000000);
         bottomSheetOverlay.setOnClickListener(view -> dismissBottomSheet());
 
+        // Contenedor principal del sheet
         LinearLayout sheet = new LinearLayout(this);
         sheet.setOrientation(LinearLayout.VERTICAL);
-        sheet.setPadding(dp(20), dp(16), dp(20), dp(36));
+        sheet.setPadding(dp(20), dp(14), dp(20), dp(32));
         GradientDrawable sheetBg = new GradientDrawable();
         sheetBg.setColor(COLOR_SURFACE);
         sheetBg.setCornerRadii(new float[]{ dp(22), dp(22), dp(22), dp(22), 0, 0, 0, 0 });
@@ -1635,28 +1727,58 @@ public class MainActivity extends Activity {
         sheet.setBackground(sheetBg);
         sheet.setOnClickListener(view -> {});
 
+        // Handle bar centrado
+        LinearLayout handleRow = new LinearLayout(this);
+        handleRow.setGravity(Gravity.CENTER);
+        handleRow.setPadding(0, 0, 0, dp(14));
         View handle = new View(this);
         GradientDrawable handleBg = new GradientDrawable();
-        handleBg.setColor(withAlpha(COLOR_PRIMARY, 55));
+        handleBg.setColor(withAlpha(COLOR_PRIMARY, 60));
         handleBg.setCornerRadius(dp(3));
         handle.setBackground(handleBg);
-        LinearLayout.LayoutParams handleLP = new LinearLayout.LayoutParams(dp(38), dp(4));
-        handleLP.gravity = Gravity.CENTER_HORIZONTAL;
-        handleLP.bottomMargin = dp(16);
-        sheet.addView(handle, handleLP);
+        handleRow.addView(handle, new LinearLayout.LayoutParams(dp(38), dp(4)));
+        sheet.addView(handleRow, compactWrap());
 
-        TextView sheetTitle = text("Equipo de desarrollo", 19, COLOR_TEXT, false);
+        // Encabezado: ícono + título + subtítulo
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.setPadding(0, 0, 0, dp(4));
+        FrameLayout titleIcon = new FrameLayout(this);
+        View tiBg = new View(this);
+        GradientDrawable tiBgD = new GradientDrawable();
+        tiBgD.setShape(GradientDrawable.OVAL);
+        tiBgD.setColor(withAlpha(COLOR_PRIMARY, 22));
+        tiBg.setBackground(tiBgD);
+        titleIcon.addView(tiBg, new FrameLayout.LayoutParams(dp(42), dp(42)));
+        NavIconView tiIcon = new NavIconView(this, ICON_INFO, COLOR_PRIMARY);
+        FrameLayout.LayoutParams tiLP = new FrameLayout.LayoutParams(dp(22), dp(22));
+        tiLP.gravity = Gravity.CENTER;
+        titleIcon.addView(tiIcon, tiLP);
+        titleRow.addView(titleIcon, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout titleText = new LinearLayout(this);
+        titleText.setOrientation(LinearLayout.VERTICAL);
+        titleText.setPadding(dp(12), 0, 0, 0);
+        TextView sheetTitle = text("Equipo de desarrollo", 18, COLOR_TEXT, false);
         sheetTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        sheet.addView(sheetTitle, matchWrap(0, 0, 0, dp(4)));
+        titleText.addView(sheetTitle, compactWrap());
+        TextView sheetSub = text("Proyecto académico · 2025", 11, COLOR_MUTED, false);
+        titleText.addView(sheetSub, matchWrap(0, dp(2), 0, 0));
+        titleRow.addView(titleText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        sheet.addView(titleRow, matchWrap(0, 0, 0, dp(14)));
 
-        TextView sheetSub = text("Proyecto académico de ingeniería térmica", 12, COLOR_MUTED, false);
-        sheet.addView(sheetSub, matchWrap(0, 0, 0, dp(18)));
-
+        // Línea gradiente
         GradientDrawable divLine = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-            new int[]{ withAlpha(COLOR_PRIMARY, 120), withAlpha(COLOR_SECONDARY, 60), 0x00000000 });
+            new int[]{ withAlpha(COLOR_PRIMARY, 130), withAlpha(COLOR_SECONDARY, 70), 0x00000000 });
         View div = new View(this);
         div.setBackground(divLine);
-        sheet.addView(div, matchWrap(0, 0, 0, dp(16)));
+        sheet.addView(div, matchWrap(0, 0, 0, dp(14)));
+
+        // Cards de autores en ScrollView (por si no caben en pantalla)
+        ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout cardsContainer = new LinearLayout(this);
+        cardsContainer.setOrientation(LinearLayout.VERTICAL);
 
         String[][] authors = {
             { "WM", "Wenceslao T. Medina Espinoza", "Coordinación del análisis térmico y validación de propiedades." },
@@ -1665,21 +1787,21 @@ public class MainActivity extends Activity {
             { "AL", "Alicia León Tacca", "Revisión académica, presentación y documentación del proyecto." }
         };
         int[] authorColors = { COLOR_PRIMARY, COLOR_SECONDARY, COLOR_ACCENT, COLOR_VIOLET };
+        final View[] authorCards = new View[authors.length];
 
         for (int i = 0; i < authors.length; i++) {
-            final int idx = i;
             View authorCard = buildAuthorCard(authors[i][0], authors[i][1], authors[i][2], authorColors[i]);
-            LinearLayout.LayoutParams aLP = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            LinearLayout.LayoutParams aLP = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             if (i > 0) aLP.topMargin = dp(10);
-            sheet.addView(authorCard, aLP);
-            authorCard.setAlpha(0f);
-            authorCard.setTranslationY(dp(18));
-            authorCard.post(() -> authorCard.animate()
-                .alpha(1f).translationY(0f).setDuration(260)
-                .setStartDelay(idx * 65L)
-                .setInterpolator(new DecelerateInterpolator()).start());
+            cardsContainer.addView(authorCard, aLP);
+            authorCards[i] = authorCard;
         }
+        scroll.addView(cardsContainer, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        sheet.addView(scroll, matchWrap(0, 0, 0, 0));
 
+        // Agregar overlay al root PRIMERO
         FrameLayout.LayoutParams sheetParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
         sheetParams.gravity = Gravity.BOTTOM;
@@ -1687,11 +1809,23 @@ public class MainActivity extends Activity {
         rootLayout.addView(bottomSheetOverlay, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
-        sheet.setTranslationY(dp(600));
-        sheet.animate().translationY(0f).setDuration(360)
-            .setInterpolator(new DecelerateInterpolator(1.6f)).start();
+        // Animar sheet desde abajo DESPUÉS de agregar al root
+        sheet.setTranslationY(dp(500));
+        sheet.animate().translationY(0f).setDuration(340)
+            .setInterpolator(new DecelerateInterpolator(1.5f)).start();
         bottomSheetOverlay.setAlpha(0f);
-        bottomSheetOverlay.animate().alpha(1f).setDuration(240).start();
+        bottomSheetOverlay.animate().alpha(1f).setDuration(220).start();
+
+        // Animar cards con postDelayed DESPUÉS de que el overlay esté adjunto a la ventana
+        for (int i = 0; i < authorCards.length; i++) {
+            final View card = authorCards[i];
+            card.setAlpha(0f);
+            card.setTranslationY(dp(14));
+            final long delay = 220L + i * 75L;
+            sheet.postDelayed(() -> card.animate()
+                .alpha(1f).translationY(0f).setDuration(240)
+                .setInterpolator(new DecelerateInterpolator()).start(), delay);
+        }
     }
 
     private View buildAuthorCard(String initials, String name, String contribution, int color) {
@@ -2543,25 +2677,28 @@ public class MainActivity extends Activity {
         button.setOrientation(LinearLayout.HORIZONTAL);
         button.setGravity(Gravity.CENTER);
         button.setPadding(dp(16), 0, dp(16), 0);
-        button.setBackground(rippleBackground(COLOR_ACCENT, 0x33000000, dp(12)));
+        GradientDrawable pdfBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{ COLOR_ACCENT, withAlpha(COLOR_ACCENT, 200) });
+        pdfBg.setCornerRadius(dp(14));
+        button.setBackground(pdfBg);
+        button.setElevation(dp(5));
         button.setOnClickListener(view -> handleExportPdfPress());
         button.setOnTouchListener((view, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                view.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80).start();
-            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+            if (event.getAction() == MotionEvent.ACTION_DOWN)
+                view.animate().scaleX(0.97f).scaleY(0.97f).setDuration(70).start();
+            else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL)
                 view.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
-            }
             return false;
         });
 
-        exportPdfIcon = new NavIconView(this, ICON_REPORT, 0xFF412402);
+        exportPdfIcon = new NavIconView(this, ICON_REPORT, 0xFF1A0E00);
         button.addView(exportPdfIcon, new LinearLayout.LayoutParams(dp(24), dp(24)));
 
-        exportPdfSpinner = new SmallSpinnerView(this, 0xFF412402);
+        exportPdfSpinner = new SmallSpinnerView(this, 0xFF1A0E00);
         exportPdfSpinner.setVisibility(View.GONE);
         button.addView(exportPdfSpinner, new LinearLayout.LayoutParams(dp(22), dp(22)));
 
-        exportPdfText = text("Exportar PDF", 14, 0xFF412402, false);
+        exportPdfText = text("Exportar PDF", 14, 0xFF1A0E00, false);
         exportPdfText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -2580,63 +2717,97 @@ public class MainActivity extends Activity {
     }
 
     private View resultPropertyCard(ResultEntry entry) {
-        LinearLayout card = new LinearLayout(this);
         String tableKey = tableKeyForEntry(entry);
         int trend = trendType(entry);
         int trendColor = trendColor(trend);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(0, 0, 0, 0);
-        card.setBackground(roundedStroke(COLOR_SURFACE, 0xFF253D37, dp(12)));
-        card.setElevation(dp(2));
+        int fluidColor = colorForTable(tableKey);
 
+        // Contenedor externo HORIZONTAL: barra de acento + contenido
+        LinearLayout outerCard = new LinearLayout(this);
+        outerCard.setOrientation(LinearLayout.HORIZONTAL);
+        GradientDrawable cardBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{ withAlpha(trendColor, 14), COLOR_SURFACE });
+        cardBg.setCornerRadius(dp(14));
+        cardBg.setStroke(dp(1), withAlpha(trendColor, 45));
+        outerCard.setBackground(cardBg);
+        outerCard.setElevation(dp(3));
+
+        // Barra de acento izquierda con gradiente del color de tendencia
+        View accent = new View(this);
+        GradientDrawable accentBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{ trendColor, withAlpha(trendColor, 110) });
+        accentBg.setCornerRadii(new float[]{ dp(14), dp(14), 0, 0, 0, 0, dp(14), dp(14) });
+        accent.setBackground(accentBg);
+        outerCard.addView(accent, new LinearLayout.LayoutParams(dp(4), LinearLayout.LayoutParams.MATCH_PARENT));
+
+        // Contenido vertical
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+
+        // ── Encabezado: nombre de propiedad + badge de tendencia ──
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(10), dp(9), dp(10), dp(7));
-        TextView name = text(entry.label.toUpperCase(Locale.US), 9, 0xFF7FA89C, false);
+        header.setPadding(dp(12), dp(10), dp(10), dp(8));
+        TextView name = text(entry.label, 10, COLOR_MUTED, false);
         name.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         header.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         TextView trendBadge = text(trendLabel(trend), 9, trendColor, false);
         trendBadge.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        trendBadge.setPadding(dp(7), dp(2), dp(7), dp(2));
-        trendBadge.setBackground(rounded(0xFF1D4A3C, dp(5)));
+        trendBadge.setPadding(dp(7), dp(3), dp(7), dp(3));
+        GradientDrawable badgeBg = new GradientDrawable();
+        badgeBg.setColor(withAlpha(trendColor, 20));
+        badgeBg.setStroke(dp(1), withAlpha(trendColor, 55));
+        badgeBg.setCornerRadius(dp(6));
+        trendBadge.setBackground(badgeBg);
         header.addView(trendBadge, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         card.addView(header, compactWrap());
         card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
 
+        // ── Fila de valor: símbolo + número grande + unidad ──
         LinearLayout valueRow = new LinearLayout(this);
         valueRow.setOrientation(LinearLayout.HORIZONTAL);
         valueRow.setGravity(Gravity.CENTER_VERTICAL);
-        valueRow.setPadding(dp(10), dp(8), dp(10), dp(8));
-        valueRow.addView(symbolView(formulaMeta(entry).symbol, 20, COLOR_PRIMARY, true), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        TextView value = text(" " + valueOnly(entry), 17, COLOR_PRIMARY, false);
+        valueRow.setPadding(dp(12), dp(10), dp(10), dp(10));
+        valueRow.addView(symbolView(formulaMeta(entry).symbol, 22, trendColor, true),
+            new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        TextView value = text(" " + valueOnly(entry), 19, COLOR_TEXT, false);
         value.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.BOLD));
+        value.setTextColor(COLOR_TEXT);
         valueRow.addView(value, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        String unitBadge = unitBadge(entry);
-        if (!unitBadge.isEmpty()) {
-            TextView unit = text(" " + unitBadge, 11, 0xFF7FA89C, false);
-            valueRow.addView(unit, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        String unitStr = unitBadge(entry);
+        if (!unitStr.isEmpty()) {
+            TextView unitView = text("  " + unitStr, 10, withAlpha(trendColor, 190), false);
+            unitView.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            valueRow.addView(unitView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         }
         card.addView(valueRow, compactWrap());
         card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
+
+        // ── Bloque de fórmula (expandible) ──
         card.addView(formulaBlock(entry), compactWrap());
         card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
-        card.addView(descriptionBlock(entry.explanation), compactWrap());
-        card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
 
+        // ── Descripción (expandible) ──
+        card.addView(descriptionBlock(entry.explanation), compactWrap());
+
+        // ── Gráfico de tendencia (mejorado) ──
         PropertyTable table = tables.get(tableKey);
         PropertySpec prop = propertyForEntry(entry);
         if (table != null && prop != null && !Double.isNaN(entry.temperature)) {
+            card.addView(thinResultDivider(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, (int) dp(0.5f))));
             MiniTrendChartView miniChart = new MiniTrendChartView(this);
             miniChart.setData(table, prop, entry.temperature, trendColor);
-            card.addView(miniChart, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(40)));
+            card.addView(miniChart, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(62)));
         }
-        return card;
+
+        outerCard.addView(card, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        return outerCard;
     }
 
     private View thinResultDivider() {
         View divider = new View(this);
-        divider.setBackgroundColor(0xFF1D3530);
+        divider.setBackgroundColor(withAlpha(COLOR_BORDER, 55));
         return divider;
     }
 
@@ -2671,7 +2842,7 @@ public class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(10), dp(7), dp(10), dp(7));
-        TextView description = text(value, 10, 0xFF7FA89C, false);
+        TextView description = text(value, 10, COLOR_MUTED, false);
         description.setLineSpacing(0, 1.18f);
         description.setMaxLines(2);
         description.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -2846,7 +3017,7 @@ public class MainActivity extends Activity {
         LinearLayout popupContent = new LinearLayout(this);
         popupContent.setOrientation(LinearLayout.VERTICAL);
         popupContent.setPadding(dp(9), dp(6), dp(9), dp(6));
-        popupContent.setBackground(roundedStroke(0xFF132320, 0xFF1D4A3C, dp(6)));
+        popupContent.setBackground(roundedStroke(COLOR_SURFACE, COLOR_BORDER, dp(8)));
 
         String normalized = token.replace("d", "");
         TextView title = text(token + " — " + variableName(normalized), 11, COLOR_TEXT, false);
@@ -2985,13 +3156,9 @@ public class MainActivity extends Activity {
     }
 
     private int trendColor(int trend) {
-        if (trend > 0) {
-            return COLOR_PRIMARY;
-        }
-        if (trend < 0) {
-            return COLOR_ACCENT;
-        }
-        return 0xFFD85A30;
+        if (trend > 0) return COLOR_PRIMARY;
+        if (trend < 0) return COLOR_ACCENT;
+        return COLOR_VIOLET;
     }
 
     private TableSpec selectedSpec() {
@@ -4310,7 +4477,7 @@ public class MainActivity extends Activity {
             dp(16), dp(16),
             0, 0
         });
-        drawable.setStroke(dp(1), 0xFF1D4A3C);
+        drawable.setStroke(dp(1), withAlpha(COLOR_BORDER, 70));
         return drawable;
     }
 
@@ -5055,7 +5222,7 @@ public class MainActivity extends Activity {
     private final class BottomNavItemView extends FrameLayout {
         private final int iconType;
         private final String label;
-        private final int targetScreen;
+        final int targetScreen;
         private final LinearLayout pill;
         private final NavIconView icon;
         private final TextView labelView;
@@ -5067,25 +5234,25 @@ public class MainActivity extends Activity {
             this.iconType = iconType;
             this.label = label;
             this.targetScreen = targetScreen;
-            setPadding(0, 0, 0, 0);
-            setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 26), dp(32)));
+            setPadding(0, dp(4), 0, dp(4));
+            setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 22), dp(32)));
             setContentDescription(label);
 
             pill = new LinearLayout(context);
             pill.setOrientation(LinearLayout.VERTICAL);
             pill.setGravity(Gravity.CENTER);
-            pill.setPadding(dp(18), dp(8), dp(18), dp(6));
-            pill.setBackground(rounded(0xFF1D4A3C, dp(14)));
+            pill.setPadding(dp(20), dp(7), dp(20), dp(6));
+            pill.setBackground(pillBackground(false));
             pill.setScaleX(0f);
             pill.setScaleY(0f);
 
             FrameLayout iconWrap = new FrameLayout(context);
-            icon = new NavIconView(context, iconType, 0xFF3A5A52);
-            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(28), dp(28));
+            icon = new NavIconView(context, iconType, COLOR_MUTED);
+            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(26), dp(26));
             iconParams.gravity = Gravity.CENTER;
             iconWrap.addView(icon, iconParams);
 
-            badge = text("", 9, 0xFF04342C, true);
+            badge = text("", 9, 0xFF060C18, true);
             badge.setGravity(Gravity.CENTER);
             badge.setBackground(rounded(COLOR_PRIMARY, dp(8)));
             badge.setVisibility(GONE);
@@ -5093,44 +5260,55 @@ public class MainActivity extends Activity {
             badge.setScaleY(0f);
             FrameLayout.LayoutParams badgeParams = new FrameLayout.LayoutParams(dp(16), dp(16));
             badgeParams.gravity = Gravity.TOP | Gravity.END;
-            badgeParams.topMargin = -dp(4);
-            badgeParams.rightMargin = -dp(4);
+            badgeParams.topMargin = -dp(2);
+            badgeParams.rightMargin = -dp(2);
             iconWrap.addView(badge, badgeParams);
 
-            pill.addView(iconWrap, new LinearLayout.LayoutParams(dp(32), dp(26)));
-            labelView = text(label, 10, COLOR_PRIMARY, false);
+            pill.addView(iconWrap, new LinearLayout.LayoutParams(dp(28), dp(24)));
+            labelView = text(label, 10, 0xFF060C18, false);
             labelView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
             labelView.setGravity(Gravity.CENTER);
             labelView.setVisibility(GONE);
             pill.addView(labelView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
             FrameLayout.LayoutParams pillParams = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            );
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
             pillParams.gravity = Gravity.CENTER;
             addView(pill, pillParams);
+        }
+
+        private GradientDrawable pillBackground(boolean selected) {
+            if (!selected) {
+                GradientDrawable gd = new GradientDrawable();
+                gd.setColor(0x00000000);
+                gd.setCornerRadius(dp(16));
+                return gd;
+            }
+            GradientDrawable gd = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{ COLOR_PRIMARY, withAlpha(COLOR_SECONDARY, 220) });
+            gd.setCornerRadius(dp(16));
+            return gd;
         }
 
         void setSelectedState(boolean selected, int historyCount) {
             if (selectedState != selected) {
                 selectedState = selected;
-                icon.animate().alpha(0.25f).setDuration(75).withEndAction(() -> {
-                    icon.setIconColor(selected ? COLOR_PRIMARY : 0xFF3A5A52);
+                // Animación de cambio de color del ícono
+                icon.animate().alpha(0.2f).setDuration(70).withEndAction(() -> {
+                    icon.setIconColor(selected ? 0xFF060C18 : COLOR_MUTED);
                     icon.invalidate();
-                    icon.animate().alpha(1f).setDuration(75).start();
+                    icon.animate().alpha(1f).setDuration(80).start();
                 }).start();
                 labelView.setVisibility(selected ? VISIBLE : GONE);
+                // Animación del pill: escala + fade
                 pill.animate()
-                    .scaleX(selected ? 1f : 0.68f)
-                    .scaleY(selected ? 1f : 0.68f)
+                    .scaleX(selected ? 1f : 0.6f)
+                    .scaleY(selected ? 1f : 0.6f)
                     .alpha(selected ? 1f : 0f)
-                    .setDuration(220)
-                    .setInterpolator(new DecelerateInterpolator())
+                    .setDuration(250)
+                    .setInterpolator(new DecelerateInterpolator(1.3f))
                     .withStartAction(() -> {
-                        if (selected) {
-                            pill.setVisibility(VISIBLE);
-                        }
+                        if (selected) pill.setVisibility(VISIBLE);
                     })
                     .withEndAction(() -> {
                         if (!selected) {
@@ -5138,21 +5316,21 @@ public class MainActivity extends Activity {
                             pill.setScaleX(1f);
                             pill.setScaleY(1f);
                             pill.setAlpha(1f);
-                            pill.setBackground(rounded(0x00000000, dp(14)));
+                            pill.setBackground(pillBackground(false));
                         } else {
-                            pill.setBackground(rounded(0xFF1D4A3C, dp(14)));
+                            pill.setBackground(pillBackground(true));
                         }
                     })
                     .start();
                 if (!selected) {
-                    pill.setBackground(rounded(0x00000000, dp(14)));
+                    pill.setBackground(pillBackground(false));
                     labelView.setVisibility(GONE);
                 }
             } else {
-                icon.setIconColor(selected ? COLOR_PRIMARY : 0xFF3A5A52);
+                icon.setIconColor(selected ? 0xFF060C18 : COLOR_MUTED);
                 icon.invalidate();
                 labelView.setVisibility(selected ? VISIBLE : GONE);
-                pill.setBackground(rounded(selected ? 0xFF1D4A3C : 0x00000000, dp(14)));
+                pill.setBackground(pillBackground(selected));
                 pill.setScaleX(1f);
                 pill.setScaleY(1f);
                 pill.setAlpha(1f);
@@ -5518,8 +5696,8 @@ public class MainActivity extends Activity {
             LinearLayout method = new LinearLayout(context);
             method.setGravity(Gravity.CENTER_VERTICAL);
             method.setOrientation(HORIZONTAL);
-            method.addView(new NavIconView(context, ICON_CPU, 0xFF3A5A52), new LinearLayout.LayoutParams(dp(14), dp(14)));
-            TextView methodText = text("método: spline cúbica interpolada", 9, 0xFF3A5A52, false);
+            method.addView(new NavIconView(context, ICON_CPU, withAlpha(COLOR_PRIMARY, 160)), new LinearLayout.LayoutParams(dp(14), dp(14)));
+            TextView methodText = text("método: spline cúbica interpolada", 9, withAlpha(COLOR_PRIMARY, 160), false);
             method.addView(methodText, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             content.addView(method, matchWrap(0, dp(4), 0, 0));
 
@@ -5532,7 +5710,7 @@ public class MainActivity extends Activity {
             TextView badge = text(unitBadge(entry), 9, 0xFF7FA89C, false);
             badge.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
             badge.setPadding(dp(4), dp(1), dp(4), dp(1));
-            badge.setBackground(rounded(0xFF1D4A3C, dp(3)));
+            badge.setBackground(rounded(withAlpha(COLOR_PRIMARY, 30), dp(3)));
             LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             badgeParams.leftMargin = dp(3);
             eval.addView(badge, badgeParams);
@@ -5551,7 +5729,7 @@ public class MainActivity extends Activity {
 
             frame.addView(content, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
 
-            copyIcon = new NavIconView(context, ICON_COPY, 0xFF3A5A52);
+            copyIcon = new NavIconView(context, ICON_COPY, withAlpha(COLOR_PRIMARY, 160));
             copyIcon.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(18)));
             copyIcon.setOnClickListener(view -> copyFormulaWithFeedback());
             FrameLayout.LayoutParams copyParams = new FrameLayout.LayoutParams(dp(36), dp(36));
@@ -5560,7 +5738,7 @@ public class MainActivity extends Activity {
             copyParams.rightMargin = dp(33);
             frame.addView(copyIcon, copyParams);
 
-            chevronIcon = new NavIconView(context, ICON_CHEVRON, 0xFF3A5A52);
+            chevronIcon = new NavIconView(context, ICON_CHEVRON, withAlpha(COLOR_PRIMARY, 160));
             chevronIcon.setBackground(rippleBackground(0x00000000, withAlpha(COLOR_PRIMARY, 31), dp(18)));
             chevronIcon.setOnClickListener(view -> toggleExpanded());
             FrameLayout.LayoutParams chevronParams = new FrameLayout.LayoutParams(dp(36), dp(36));
@@ -5583,7 +5761,7 @@ public class MainActivity extends Activity {
             copyIcon.postDelayed(() -> {
                 copyIcon.animate().alpha(expanded ? 0f : 1f).setDuration(120).withEndAction(() -> {
                     copyIcon.setIconType(ICON_COPY);
-                    copyIcon.setIconColor(0xFF3A5A52);
+                    copyIcon.setIconColor(withAlpha(COLOR_PRIMARY, 160));
                     copyIcon.invalidate();
                 }).start();
             }, 1500);
@@ -5872,7 +6050,8 @@ public class MainActivity extends Activity {
 
     private final class MiniTrendChartView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path path = new Path();
+        private final Path curvePath = new Path();
+        private final Path fillPath = new Path();
         private final List<Double> xValues = new ArrayList<>();
         private final List<Double> yValues = new ArrayList<>();
         private PropertySpec prop;
@@ -5882,7 +6061,7 @@ public class MainActivity extends Activity {
 
         MiniTrendChartView(Context context) {
             super(context);
-            setPadding(dp(8), dp(6), dp(8), dp(6));
+            setPadding(dp(10), dp(8), dp(10), dp(4));
         }
 
         void setData(PropertyTable table, PropertySpec prop, double temperature, int lineColor) {
@@ -5890,82 +6069,108 @@ public class MainActivity extends Activity {
             this.prop = prop;
             this.temperature = temperature;
             this.lineColor = lineColor;
-            fillChartValues(table, prop, table.minTemperature(), table.maxTemperature(), xValues, yValues, 52);
+            fillChartValues(table, prop, table.minTemperature(), table.maxTemperature(), xValues, yValues, 60);
             invalidate();
         }
 
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
-            if (table == null || prop == null || xValues.isEmpty()) {
-                return;
-            }
+            if (table == null || prop == null || xValues.isEmpty()) return;
             float left = getPaddingLeft();
             float right = getWidth() - getPaddingRight();
             float top = getPaddingTop();
-            float bottom = getHeight() - getPaddingBottom() - dp(9);
-            if (right <= left || bottom <= top) {
-                return;
-            }
+            float bottom = getHeight() - getPaddingBottom() - dp(12);
+            if (right <= left || bottom <= top) return;
+
             double minX = table.minTemperature();
             double maxX = table.maxTemperature();
-            double minY = yValues.get(0);
-            double maxY = yValues.get(0);
-            for (double value : yValues) {
-                minY = Math.min(minY, value);
-                maxY = Math.max(maxY, value);
-            }
-            if (Math.abs(maxY - minY) < 1e-12) {
-                maxY += 1.0;
-                minY -= 1.0;
+            double minY = yValues.get(0), maxY = yValues.get(0);
+            for (double v : yValues) { minY = Math.min(minY, v); maxY = Math.max(maxY, v); }
+            if (Math.abs(maxY - minY) < 1e-12) { maxY += 1.0; minY -= 1.0; }
+
+            // Grid horizontal (3 líneas sutiles)
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(0.5f));
+            paint.setColor(withAlpha(lineColor, 18));
+            paint.setPathEffect(null);
+            for (int g = 1; g <= 3; g++) {
+                float gy = bottom - (bottom - top) * g / 4f;
+                canvas.drawLine(left, gy, right, gy, paint);
             }
 
-            path.reset();
+            // Construir curva
+            curvePath.reset();
             for (int i = 0; i < xValues.size(); i++) {
                 float px = (float) (left + (xValues.get(i) - minX) / (maxX - minX) * (right - left));
                 float py = (float) (bottom - (yValues.get(i) - minY) / (maxY - minY) * (bottom - top));
-                if (i == 0) {
-                    path.moveTo(px, py);
-                } else {
-                    path.lineTo(px, py);
-                }
+                if (i == 0) curvePath.moveTo(px, py);
+                else curvePath.lineTo(px, py);
             }
 
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dp(1.5f));
-            paint.setColor(lineColor);
-            paint.setPathEffect(null);
-            canvas.drawPath(path, paint);
-
+            // Relleno gradiente bajo la curva
+            fillPath.set(curvePath);
+            fillPath.lineTo(right, bottom);
+            fillPath.lineTo(left, bottom);
+            fillPath.close();
             paint.setStyle(Paint.Style.FILL);
-            paint.setTextSize(dp(9));
-            paint.setTypeface(Typeface.MONOSPACE);
-            paint.setColor(0xFF3A5A52);
-            canvas.drawText(String.format(Locale.US, "%.0f °C", minX), left, getHeight() - dp(2), paint);
-            canvas.drawText(String.format(Locale.US, "%.0f °C", maxX), right - dp(42), getHeight() - dp(2), paint);
+            paint.setShader(new LinearGradient(0, top, 0, bottom,
+                withAlpha(lineColor, 60), 0x00000000, Shader.TileMode.CLAMP));
+            canvas.drawPath(fillPath, paint);
+            paint.setShader(null);
 
+            // Línea de la curva
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(1.8f));
+            paint.setColor(withAlpha(lineColor, 225));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setPathEffect(null);
+            canvas.drawPath(curvePath, paint);
+
+            // Etiquetas de temperatura en eje X
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextSize(dp(8.5f));
+            paint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            paint.setColor(withAlpha(lineColor, 140));
+            canvas.drawText(String.format(Locale.US, "%.0f°", minX), left, getHeight() - dp(1.5f), paint);
+            String maxLabel = String.format(Locale.US, "%.0f°", maxX);
+            float maxLabelWidth = paint.measureText(maxLabel);
+            canvas.drawText(maxLabel, right - maxLabelWidth, getHeight() - dp(1.5f), paint);
+
+            // Marcador de la temperatura actual
             if (!Double.isNaN(temperature) && temperature >= minX && temperature <= maxX) {
                 double current = table.valueFor(prop.column, temperature);
                 float px = (float) (left + (temperature - minX) / (maxX - minX) * (right - left));
                 float py = (float) (bottom - (current - minY) / (maxY - minY) * (bottom - top));
+
+                // Línea vertical punteada
                 paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(Math.max(1f, dp(0.5f)));
-                paint.setColor(withAlpha(lineColor, 102));
-                paint.setPathEffect(new DashPathEffect(new float[] {dp(2), dp(2)}, 0));
+                paint.setStrokeWidth(dp(0.8f));
+                paint.setColor(withAlpha(lineColor, 85));
+                paint.setPathEffect(new DashPathEffect(new float[]{ dp(2.5f), dp(2.5f) }, 0));
                 canvas.drawLine(px, py, px, bottom, paint);
                 paint.setPathEffect(null);
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(dp(1));
-                paint.setColor(withAlpha(lineColor, 77));
-                canvas.drawCircle(px, py, dp(5.5f), paint);
+
+                // Halo exterior
                 paint.setStyle(Paint.Style.FILL);
+                paint.setColor(withAlpha(lineColor, 28));
+                canvas.drawCircle(px, py, dp(9), paint);
+                // Anillo medio
+                paint.setColor(withAlpha(lineColor, 75));
+                canvas.drawCircle(px, py, dp(5.5f), paint);
+                // Punto central
                 paint.setColor(lineColor);
-                canvas.drawCircle(px, py, dp(3.5f), paint);
-                paint.setTypeface(Typeface.MONOSPACE);
-                paint.setTextSize(dp(8));
-                String label = String.format(Locale.US, "%.3g", current);
-                float labelX = Math.min(px + dp(4), right - dp(44));
-                canvas.drawText(label, labelX, Math.max(top + dp(8), py - dp(4)), paint);
+                canvas.drawCircle(px, py, dp(3f), paint);
+
+                // Etiqueta del valor actual
+                paint.setTextSize(dp(8.5f));
+                paint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                paint.setColor(lineColor);
+                String valLabel = String.format(Locale.US, "%.4g", current);
+                float labelX = Math.min(px + dp(6), right - paint.measureText(valLabel) - dp(2));
+                float labelY = Math.max(top + dp(10), py - dp(6));
+                canvas.drawText(valLabel, labelX, labelY, paint);
             }
         }
     }
