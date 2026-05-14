@@ -4633,10 +4633,10 @@ public class MainActivity extends Activity {
             eval.setGravity(Gravity.CENTER_VERTICAL);
             eval.setOrientation(HORIZONTAL);
             TextView evalText = text(String.format(Locale.US, "@ %.2f °C → %s", entry.temperature, evaluationValue(entry)), 10, COLOR_PRIMARY, false);
-            evalText.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+            evalText.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
             eval.addView(evalText, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             TextView badge = text(unitBadge(entry), 9, 0xFF7FA89C, false);
-            badge.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+            badge.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
             badge.setPadding(dp(4), dp(1), dp(4), dp(1));
             badge.setBackground(rounded(0xFF1D4A3C, dp(3)));
             LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -4651,7 +4651,7 @@ public class MainActivity extends Activity {
             deduction.setLineSpacing(0, 1.15f);
             expandedRows.addView(deduction, matchWrap(0, dp(6), 0, 0));
             TextView dimension = text(formulaMeta(entry).dimension, 11, 0xFF5DCAA5, false);
-            dimension.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+            dimension.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
             expandedRows.addView(dimension, matchWrap(0, dp(4), 0, 0));
             content.addView(expandedRows, compactWrap());
 
