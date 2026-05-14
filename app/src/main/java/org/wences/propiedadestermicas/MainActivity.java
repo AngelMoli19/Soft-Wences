@@ -2151,7 +2151,7 @@ public class MainActivity extends Activity {
         String label = entry.label == null ? "" : entry.label.toLowerCase(Locale.US);
         String unit = entry.unit == null ? "" : entry.unit;
         if (label.contains("expansi")) {
-            return "K⁻¹";
+            return "×10⁻³ K⁻¹";
         }
         if (label.contains("densidad")) {
             return "kg/m³";
@@ -2200,15 +2200,7 @@ public class MainActivity extends Activity {
     }
 
     private String evaluationValue(ResultEntry entry) {
-        String unit = entry.unit == null ? "" : entry.unit;
-        String value = valueOnly(entry);
-        if (unit.startsWith("x 10^-3")) {
-            return value + " ×10⁻³";
-        }
-        if (unit.startsWith("x 10-6") || unit.startsWith("x 10^-6")) {
-            return value + " ×10⁻⁶";
-        }
-        return value;
+        return valueOnly(entry);
     }
 
     private String formulaText(ResultEntry entry) {
