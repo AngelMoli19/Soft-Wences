@@ -2534,10 +2534,58 @@ public class MainActivity extends Activity {
         }
 
         if (!lastPdfEntries.isEmpty()) {
+            View diagram = fluidDiagramView();
+            if (diagram != null) {
+                LinearLayout.LayoutParams diagramLP = matchWrap(0, dp(12), 0, dp(8));
+                resultsLayout.addView(diagram, diagramLP);
+                animateView(diagram, lastPdfEntries.size() * 45L + 80);
+            }
             View pdfButton = exportPdfButtonItem();
             resultsLayout.addView(pdfButton, matchWrap(0, 0, 0, 0));
-            animateView(pdfButton, lastPdfEntries.size() * 45L);
+            animateView(pdfButton, lastPdfEntries.size() * 45L + 200);
         }
+    }
+
+    private View fluidDiagramView() {
+        PropertyTable table = tables.get(lastTableKey);
+        if (table == null || Double.isNaN(lastTemperature)) return null;
+        int fluidColor = colorForTable(lastTableKey);
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(14), dp(14), dp(14), dp(14));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(COLOR_SURFACE);
+        bg.setCornerRadius(dp(16));
+        bg.setStroke(dp(1), withAlpha(fluidColor, 45));
+        container.setBackground(bg);
+        container.setElevation(dp(5));
+
+        String chartTitle = "air".equals(lastTableKey) ? "CARTA PSICROMÉTRICA" :
+                            "steam".equals(lastTableKey) ? "DIAGRAMA DE MOLLIER  (h–s)" :
+                            "PROPIEDADES vs TEMPERATURA";
+        TextView titleLabel = text(chartTitle, 9, withAlpha(fluidColor, 210), false);
+        titleLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        titleLabel.setLetterSpacing(0.12f);
+        container.addView(titleLabel, matchWrap(0, 0, 0, dp(10)));
+
+        GradientDrawable divBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{ withAlpha(fluidColor, 140), withAlpha(COLOR_SECONDARY, 60), 0x00000000 });
+        View div = new View(this);
+        div.setBackground(divBg);
+        container.addView(div, matchWrap(0, 0, 0, dp(12)));
+
+        View chartView;
+        if ("air".equals(lastTableKey)) {
+            chartView = new PsychroChartView(this, lastTemperature, fluidColor);
+        } else if ("steam".equals(lastTableKey)) {
+            chartView = new MollierDomeView(this, table, lastTemperature, fluidColor);
+        } else {
+            chartView = new MultiPropChartView(this, table, lastTemperature, fluidColor);
+        }
+        container.addView(chartView, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(250)));
+        return container;
     }
 
     private View exportPdfButtonItem() {
@@ -5918,6 +5966,543 @@ public class MainActivity extends Activity {
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setColor(color);
             canvas.drawArc(left, top, left + size, top + size, rotation, 250, false, paint);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  CARTA PSICROMÉTRICA — Aire seco
+    // ══════════════════════════════════════════════════════
+    private final class PsychroChartView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final double currentTemp;
+        private final int accentColor;
+        private float prog = 0f;
+        private ValueAnimator anim;
+        private final double P_ATM = 101325.0;
+        private final double T_MIN = 0, T_MAX = 55, W_MAX = 55;
+        private final double[] RH = {0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0};
+
+        PsychroChartView(Context ctx, double currentTemp, int accent) {
+            super(ctx);
+            this.currentTemp = currentTemp;
+            this.accentColor = accent;
+            setPadding(dp(28), dp(6), dp(8), dp(22));
+            anim = ValueAnimator.ofFloat(0f, 1f);
+            anim.setDuration(1800);
+            anim.setInterpolator(new DecelerateInterpolator(1.3f));
+            anim.addUpdateListener(a -> { prog = (float)a.getAnimatedValue(); invalidate(); });
+            anim.start();
+        }
+
+        @Override protected void onDetachedFromWindow() { if(anim!=null) anim.cancel(); super.onDetachedFromWindow(); }
+
+        private double psat(double T) { return 611.2 * Math.exp(17.67 * T / (T + 243.5)); }
+        private double w(double T, double rh) {
+            double ps = psat(T);
+            return 1000.0 * 0.622 * rh * ps / (P_ATM - rh * ps);
+        }
+        private float tx(double T, float l, float cw) { return l + (float)((T - T_MIN)/(T_MAX - T_MIN)) * cw; }
+        private float wy(double wv, float b, float ch) { return b - (float)(wv / W_MAX) * ch; }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float l = getPaddingLeft(), r = getWidth() - getPaddingRight();
+            float t = getPaddingTop(), b = getHeight() - getPaddingBottom();
+            float cw = r - l, ch = b - t;
+            if (cw <= 0 || ch <= 0) return;
+
+            // Grid
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(0.5f));
+            paint.setColor(withAlpha(accentColor, 12));
+            paint.setPathEffect(null);
+            for (int i = 0; i <= 5; i++) {
+                float x = l + cw * i / 5f;
+                canvas.drawLine(x, t, x, b, paint);
+                float y = b - ch * i / 5f;
+                canvas.drawLine(l, y, r, y, paint);
+            }
+
+            // Axis labels T
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextSize(dp(8.5f));
+            paint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            paint.setColor(withAlpha(accentColor, 160));
+            for (int ti = 0; ti <= 50; ti += 10) {
+                float x = tx(ti, l, cw);
+                canvas.drawText(ti + "°", x - dp(5), b + dp(12), paint);
+            }
+            // Axis label w
+            for (int wi = 0; wi <= 50; wi += 10) {
+                float y = wy(wi, b, ch);
+                canvas.drawText(wi + "", l - dp(26), y + dp(3), paint);
+            }
+            // Axis titles
+            paint.setTextSize(dp(8));
+            paint.setColor(withAlpha(accentColor, 130));
+            canvas.drawText("T bulbo seco (°C)", l + cw / 2f - dp(30), b + dp(20), paint);
+            // Rotate for Y label
+            canvas.save();
+            canvas.rotate(-90, l - dp(20), t + ch / 2f);
+            canvas.drawText("w  (g/kg)", l - dp(20) - dp(15), t + ch / 2f + dp(3), paint);
+            canvas.restore();
+
+            // RH curves
+            int steps = 80;
+            int drawn = (int)(steps * prog);
+            int[] rhAlpha = {60, 75, 90, 105, 125, 145, 165, 185, 205, 240};
+
+            for (int ri = 0; ri < RH.length; ri++) {
+                path.reset();
+                boolean started = false;
+                for (int si = 0; si <= drawn; si++) {
+                    double T = T_MIN + (T_MAX - T_MIN) * si / steps;
+                    double wv = w(T, RH[ri]);
+                    if (wv < 0 || wv > W_MAX + 2) continue;
+                    float px = tx(T, l, cw);
+                    float py = wy(wv, b, ch);
+                    if (!started) { path.moveTo(px, py); started = true; }
+                    else path.lineTo(px, py);
+                }
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(ri == 9 ? dp(2.2f) : dp(1.3f));
+                paint.setColor(ri == 9 ? accentColor : withAlpha(ri % 2 == 0 ? COLOR_PRIMARY : COLOR_SECONDARY, rhAlpha[ri]));
+                paint.setPathEffect(null);
+                canvas.drawPath(path, paint);
+
+                // RH label at 45°C
+                if (prog > 0.7f && ri % 2 == 0) {
+                    double wLabel = w(45, RH[ri]);
+                    if (wLabel > 0 && wLabel < W_MAX) {
+                        float lx = tx(46, l, cw);
+                        float ly = wy(wLabel, b, ch) - dp(2);
+                        paint.setStyle(Paint.Style.FILL);
+                        paint.setTextSize(dp(8));
+                        paint.setColor(withAlpha(ri == 8 ? accentColor : COLOR_SECONDARY, 190));
+                        canvas.drawText((int)(RH[ri]*100) + "%", lx, ly, paint);
+                    }
+                }
+            }
+
+            // Línea vertical en T actual
+            if (!Double.isNaN(currentTemp) && currentTemp >= T_MIN && currentTemp <= T_MAX && prog > 0.6f) {
+                float ma = Math.min(1f, (prog - 0.6f) / 0.4f);
+                float cx2 = tx(currentTemp, l, cw);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(1));
+                paint.setColor(withAlpha(accentColor, (int)(160 * ma)));
+                paint.setPathEffect(new DashPathEffect(new float[]{dp(4), dp(3)}, 0));
+                canvas.drawLine(cx2, t, cx2, b, paint);
+                paint.setPathEffect(null);
+                // Marcador en RH=50%
+                double wMark = w(currentTemp, 0.5);
+                if (wMark > 0 && wMark < W_MAX) {
+                    float my = wy(wMark, b, ch);
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(withAlpha(accentColor, (int)(30 * ma)));
+                    canvas.drawCircle(cx2, my, dp(11), paint);
+                    paint.setColor(withAlpha(accentColor, (int)(90 * ma)));
+                    canvas.drawCircle(cx2, my, dp(6), paint);
+                    paint.setColor(accentColor);
+                    canvas.drawCircle(cx2, my, dp(3.2f), paint);
+                    paint.setTextSize(dp(9));
+                    paint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                    paint.setColor(withAlpha(accentColor, (int)(220 * ma)));
+                    canvas.drawText(String.format(Locale.US, "%.1f°C", currentTemp), cx2 + dp(5), my - dp(8), paint);
+                    // w label
+                    paint.setTextSize(dp(8));
+                    paint.setColor(withAlpha(COLOR_TEXT, (int)(180 * ma)));
+                    canvas.drawText(String.format(Locale.US, "w=%.1fg/kg", wMark), cx2 + dp(5), my + dp(12), paint);
+                }
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  DIAGRAMA DE MOLLIER (h-s) — Vapor saturado
+    // ══════════════════════════════════════════════════════
+    private final class MollierDomeView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final PropertyTable table;
+        private final double currentTemp;
+        private final int accentColor;
+        private float prog = 0f;
+        private ValueAnimator anim;
+        private final float[] sLiq, sVap, hLiq, hVap;
+        private float sMin, sMax, hMin, hMax;
+        private final int STEPS = 80;
+
+        MollierDomeView(Context ctx, PropertyTable table, double currentTemp, int accent) {
+            super(ctx);
+            this.table = table;
+            this.currentTemp = currentTemp;
+            this.accentColor = accent;
+            setPadding(dp(30), dp(6), dp(10), dp(22));
+            sLiq = new float[STEPS+1]; sVap = new float[STEPS+1];
+            hLiq = new float[STEPS+1]; hVap = new float[STEPS+1];
+            precompute();
+            anim = ValueAnimator.ofFloat(0f, 1f);
+            anim.setDuration(2000);
+            anim.setInterpolator(new DecelerateInterpolator(1.2f));
+            anim.addUpdateListener(a -> { prog = (float)a.getAnimatedValue(); invalidate(); });
+            anim.start();
+        }
+
+        @Override protected void onDetachedFromWindow() { if(anim!=null) anim.cancel(); super.onDetachedFromWindow(); }
+
+        private void precompute() {
+            double tMin = table.minTemperature(), tMax = table.maxTemperature();
+            sMin = Float.MAX_VALUE; sMax = -Float.MAX_VALUE;
+            hMin = Float.MAX_VALUE; hMax = -Float.MAX_VALUE;
+            for (int i = 0; i <= STEPS; i++) {
+                double T = tMin + (tMax - tMin) * i / STEPS;
+                sLiq[i] = (float) table.valueFor("y6", T);
+                sVap[i] = (float) table.valueFor("y7", T);
+                hLiq[i] = (float) table.valueFor("y4", T);
+                hVap[i] = (float) table.valueFor("y5", T);
+                sMin = Math.min(sMin, sLiq[i]); sMax = Math.max(sMax, sVap[i]);
+                hMin = Math.min(hMin, hLiq[i]); hMax = Math.max(hMax, hVap[i]);
+            }
+            float sp = (sMax - sMin) * 0.06f, hp = (hMax - hMin) * 0.06f;
+            sMin -= sp; sMax += sp; hMin -= hp; hMax += hp;
+        }
+
+        private float sx(float s, float l, float cw) { return l + (s - sMin) / (sMax - sMin) * cw; }
+        private float hy(float h, float b, float ch) { return b - (h - hMin) / (hMax - hMin) * ch; }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float l = getPaddingLeft(), r = getWidth() - getPaddingRight();
+            float t = getPaddingTop(), b = getHeight() - getPaddingBottom();
+            float cw = r - l, ch = b - t;
+            if (cw <= 0 || ch <= 0) return;
+
+            int drawn = Math.min(STEPS, (int)(STEPS * prog));
+
+            // Relleno del domo con gradiente
+            if (prog > 0.9f) {
+                float alpha = Math.min(1f, (prog - 0.9f) / 0.1f);
+                Path dome = new Path();
+                dome.moveTo(sx(sLiq[0], l, cw), hy(hLiq[0], b, ch));
+                for (int i = 1; i <= STEPS; i++) dome.lineTo(sx(sLiq[i], l, cw), hy(hLiq[i], b, ch));
+                for (int i = STEPS; i >= 0; i--) dome.lineTo(sx(sVap[i], l, cw), hy(hVap[i], b, ch));
+                dome.close();
+                paint.setStyle(Paint.Style.FILL);
+                paint.setShader(new LinearGradient(l, t, r, b,
+                    withAlpha(accentColor, (int)(45 * alpha)),
+                    withAlpha(COLOR_PRIMARY, (int)(18 * alpha)), Shader.TileMode.CLAMP));
+                canvas.drawPath(dome, paint);
+                paint.setShader(null);
+            }
+
+            // Grid
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(0.5f));
+            paint.setColor(withAlpha(accentColor, 10));
+            paint.setPathEffect(null);
+            for (int i = 0; i <= 5; i++) {
+                canvas.drawLine(l + cw*i/5f, t, l + cw*i/5f, b, paint);
+                canvas.drawLine(l, b - ch*i/5f, r, b - ch*i/5f, paint);
+            }
+
+            // Isotermas dentro del domo (líneas constante T)
+            if (prog > 0.5f) {
+                paint.setStrokeWidth(dp(0.8f));
+                paint.setColor(withAlpha(COLOR_MUTED, 50));
+                double tMin2 = table.minTemperature(), tMax2 = table.maxTemperature();
+                int numIso = 6;
+                for (int k = 1; k < numIso; k++) {
+                    double T = tMin2 + (tMax2 - tMin2) * k / numIso;
+                    int idx = (int)((T - tMin2) / (tMax2 - tMin2) * STEPS);
+                    idx = Math.max(0, Math.min(STEPS, idx));
+                    float x1 = sx(sLiq[idx], l, cw), y1 = hy(hLiq[idx], b, ch);
+                    float x2 = sx(sVap[idx], l, cw), y2 = hy(hVap[idx], b, ch);
+                    paint.setPathEffect(new DashPathEffect(new float[]{dp(3), dp(3)}, 0));
+                    canvas.drawLine(x1, y1, x2, y2, paint);
+                    paint.setPathEffect(null);
+                    if (prog > 0.8f) {
+                        paint.setStyle(Paint.Style.FILL);
+                        paint.setTextSize(dp(7.5f));
+                        paint.setColor(withAlpha(COLOR_MUTED, 130));
+                        canvas.drawText(String.format(Locale.US, "%.0f°", T), (x1 + x2)/2f - dp(8), (y1 + y2)/2f - dp(3), paint);
+                        paint.setStyle(Paint.Style.STROKE);
+                    }
+                }
+                paint.setPathEffect(null);
+            }
+
+            // Curva líquido (lado izquierdo del domo)
+            path.reset();
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(2.2f));
+            paint.setColor(withAlpha(accentColor, 230));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setPathEffect(null);
+            for (int i = 0; i <= drawn; i++) {
+                float px = sx(sLiq[i], l, cw), py = hy(hLiq[i], b, ch);
+                if (i == 0) path.moveTo(px, py); else path.lineTo(px, py);
+            }
+            canvas.drawPath(path, paint);
+
+            // Curva vapor (lado derecho del domo)
+            path.reset();
+            paint.setColor(withAlpha(COLOR_PRIMARY, 230));
+            for (int i = 0; i <= drawn; i++) {
+                float px = sx(sVap[i], l, cw), py = hy(hVap[i], b, ch);
+                if (i == 0) path.moveTo(px, py); else path.lineTo(px, py);
+            }
+            canvas.drawPath(path, paint);
+
+            // Etiquetas del domo
+            if (prog > 0.95f) {
+                paint.setStyle(Paint.Style.FILL);
+                paint.setTextSize(dp(8.5f));
+                paint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                paint.setColor(withAlpha(accentColor, 200));
+                canvas.drawText("Líquido", sx(sLiq[STEPS/4], l, cw) - dp(20), hy(hLiq[STEPS/4], b, ch) - dp(6), paint);
+                paint.setColor(withAlpha(COLOR_PRIMARY, 200));
+                canvas.drawText("Vapor", sx(sVap[STEPS*3/4], l, cw) + dp(4), hy(hVap[STEPS*3/4], b, ch) - dp(6), paint);
+            }
+
+            // Marcador del estado actual
+            if (!Double.isNaN(currentTemp) && prog > 0.7f) {
+                double tMin3 = table.minTemperature(), tMax3 = table.maxTemperature();
+                double tClamped = Math.max(tMin3, Math.min(tMax3, currentTemp));
+                int idx = (int)((tClamped - tMin3) / (tMax3 - tMin3) * STEPS);
+                idx = Math.max(0, Math.min(STEPS, idx));
+                float ma = Math.min(1f, (prog - 0.7f) / 0.3f);
+                // Marcador en curva de líquido saturado
+                float mx = sx(sLiq[idx], l, cw), my = hy(hLiq[idx], b, ch);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(withAlpha(accentColor, (int)(30*ma)));
+                canvas.drawCircle(mx, my, dp(12), paint);
+                paint.setColor(withAlpha(accentColor, (int)(100*ma)));
+                canvas.drawCircle(mx, my, dp(7), paint);
+                paint.setColor(accentColor);
+                canvas.drawCircle(mx, my, dp(3.5f), paint);
+                // Marcador en curva de vapor saturado
+                float vx = sx(sVap[idx], l, cw), vy = hy(hVap[idx], b, ch);
+                paint.setColor(withAlpha(COLOR_PRIMARY, (int)(30*ma)));
+                canvas.drawCircle(vx, vy, dp(12), paint);
+                paint.setColor(withAlpha(COLOR_PRIMARY, (int)(100*ma)));
+                canvas.drawCircle(vx, vy, dp(7), paint);
+                paint.setColor(COLOR_PRIMARY);
+                canvas.drawCircle(vx, vy, dp(3.5f), paint);
+                // Label
+                paint.setTextSize(dp(9));
+                paint.setColor(withAlpha(accentColor, (int)(220*ma)));
+                canvas.drawText(String.format(Locale.US, "T=%.1f°C", currentTemp), mx + dp(6), my - dp(8), paint);
+            }
+
+            // Axis labels
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextSize(dp(8.5f));
+            paint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            paint.setColor(withAlpha(accentColor, 150));
+            for (int si = 0; si <= 4; si++) {
+                float sv = sMin + (sMax - sMin) * si / 4f;
+                float x = l + cw * si / 4f;
+                canvas.drawText(String.format(Locale.US, "%.2f", sv), x - dp(8), b + dp(13), paint);
+            }
+            for (int hi = 0; hi <= 4; hi++) {
+                float hv = hMin + (hMax - hMin) * hi / 4f;
+                float y = b - ch * hi / 4f;
+                canvas.drawText(String.format(Locale.US, "%.0f", hv), l - dp(28), y + dp(3), paint);
+            }
+            // Axis titles
+            paint.setTextSize(dp(8));
+            paint.setColor(withAlpha(accentColor, 120));
+            canvas.drawText("s  (kJ/kg·K)", l + cw/2f - dp(28), b + dp(21), paint);
+            canvas.save();
+            canvas.rotate(-90, l - dp(22), t + ch/2f);
+            canvas.drawText("h  (kJ/kg)", l - dp(22) - dp(18), t + ch/2f + dp(3), paint);
+            canvas.restore();
+        }
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  MÚLTIPLES PROPIEDADES vs T — Agua
+    // ══════════════════════════════════════════════════════
+    private final class MultiPropChartView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path curvePath = new Path();
+        private final Path fillPath = new Path();
+        private final PropertyTable table;
+        private final double currentTemp;
+        private final int accentColor;
+        private float prog = 0f;
+        private ValueAnimator anim;
+        private final int STEPS = 80;
+
+        private final String[] COLS   = {"y3",  "y4",  "y5",  "y9"};
+        private final String[] LABELS = {"ρ",   "cp",  "k",   "Pr"};
+        private final int[]    COLORS = {0,      1,     2,     3};
+        private final float[]  minV = new float[4], maxV = new float[4];
+
+        MultiPropChartView(Context ctx, PropertyTable table, double currentTemp, int accent) {
+            super(ctx);
+            this.table = table;
+            this.currentTemp = currentTemp;
+            this.accentColor = accent;
+            setPadding(dp(8), dp(6), dp(46), dp(22));
+            precompute();
+            anim = ValueAnimator.ofFloat(0f, 1f);
+            anim.setDuration(2000);
+            anim.setStartDelay(100);
+            anim.setInterpolator(new DecelerateInterpolator(1.3f));
+            anim.addUpdateListener(a -> { prog = (float)a.getAnimatedValue(); invalidate(); });
+            anim.start();
+        }
+
+        @Override protected void onDetachedFromWindow() { if(anim!=null) anim.cancel(); super.onDetachedFromWindow(); }
+
+        private void precompute() {
+            double tMin = table.minTemperature(), tMax = table.maxTemperature();
+            for (int pi = 0; pi < COLS.length; pi++) {
+                minV[pi] = Float.MAX_VALUE; maxV[pi] = -Float.MAX_VALUE;
+                for (int si = 0; si <= STEPS; si++) {
+                    double T = tMin + (tMax - tMin) * si / STEPS;
+                    float v = (float) table.valueFor(COLS[pi], T);
+                    minV[pi] = Math.min(minV[pi], v);
+                    maxV[pi] = Math.max(maxV[pi], v);
+                }
+                float pad = (maxV[pi] - minV[pi]) * 0.05f;
+                minV[pi] -= pad; maxV[pi] += pad;
+            }
+        }
+
+        private int propColor(int idx) {
+            int[] C = {COLOR_PRIMARY, COLOR_SECONDARY, COLOR_ACCENT, COLOR_VIOLET};
+            return C[idx % C.length];
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float l = getPaddingLeft(), r = getWidth() - getPaddingRight();
+            float t = getPaddingTop(), b = getHeight() - getPaddingBottom();
+            float cw = r - l, ch = b - t;
+            if (cw <= 0 || ch <= 0) return;
+
+            double tMin = table.minTemperature(), tMax = table.maxTemperature();
+            int drawn = Math.min(STEPS, (int)(STEPS * prog));
+
+            // Grid
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(0.5f));
+            paint.setColor(withAlpha(accentColor, 12));
+            paint.setPathEffect(null);
+            for (int i = 0; i <= 5; i++) {
+                float x = l + cw * i / 5f;
+                canvas.drawLine(x, t, x, b, paint);
+                float y = b - ch * i / 5f;
+                canvas.drawLine(l, y, r, y, paint);
+            }
+
+            // Dibujar cada curva normalizada
+            for (int pi = 0; pi < COLS.length; pi++) {
+                int col = propColor(pi);
+                float range = maxV[pi] - minV[pi];
+                if (range < 1e-9f) continue;
+
+                // Fill bajo la primera curva (ρ)
+                if (pi == 0) {
+                    fillPath.reset();
+                    fillPath.moveTo(l, b);
+                    for (int si = 0; si <= drawn; si++) {
+                        double T = tMin + (tMax - tMin) * si / STEPS;
+                        float v = (float) table.valueFor(COLS[pi], T);
+                        float nx = l + (float)(si / (double)STEPS) * cw;
+                        float ny = b - (v - minV[pi]) / range * ch;
+                        fillPath.lineTo(nx, ny);
+                    }
+                    fillPath.lineTo(l + (float)(drawn / (double)STEPS) * cw, b);
+                    fillPath.close();
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setShader(new LinearGradient(0, t, 0, b,
+                        withAlpha(col, 28), 0x00000000, Shader.TileMode.CLAMP));
+                    canvas.drawPath(fillPath, paint);
+                    paint.setShader(null);
+                }
+
+                // Curva
+                curvePath.reset();
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(1.8f));
+                paint.setColor(withAlpha(col, 210));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setPathEffect(null);
+                for (int si = 0; si <= drawn; si++) {
+                    double T = tMin + (tMax - tMin) * si / STEPS;
+                    float v = (float) table.valueFor(COLS[pi], T);
+                    float nx = l + (float)(si / (double)STEPS) * cw;
+                    float ny = b - (v - minV[pi]) / range * ch;
+                    if (si == 0) curvePath.moveTo(nx, ny); else curvePath.lineTo(nx, ny);
+                }
+                canvas.drawPath(curvePath, paint);
+
+                // Etiqueta al final de la curva
+                if (prog > 0.85f) {
+                    double T = tMax;
+                    float v = (float) table.valueFor(COLS[pi], T);
+                    float lx = r + dp(4);
+                    float ly = b - (v - minV[pi]) / range * ch + dp(3);
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setTextSize(dp(9.5f));
+                    paint.setTypeface(Typeface.create("serif", Typeface.ITALIC));
+                    paint.setColor(withAlpha(col, 220));
+                    canvas.drawText(LABELS[pi], lx, ly, paint);
+                }
+            }
+
+            // Marcador temperatura actual
+            if (!Double.isNaN(currentTemp) && prog > 0.6f) {
+                float ma = Math.min(1f, (prog - 0.6f) / 0.4f);
+                float mx = l + (float)((currentTemp - tMin) / (tMax - tMin)) * cw;
+                mx = Math.max(l, Math.min(r, mx));
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(1));
+                paint.setColor(withAlpha(accentColor, (int)(160*ma)));
+                paint.setPathEffect(new DashPathEffect(new float[]{dp(4), dp(3)}, 0));
+                canvas.drawLine(mx, t, mx, b, paint);
+                paint.setPathEffect(null);
+                // Dot en cada curva a T actual
+                for (int pi = 0; pi < COLS.length; pi++) {
+                    float v = (float) table.valueFor(COLS[pi], currentTemp);
+                    float range = maxV[pi] - minV[pi];
+                    if (range < 1e-9f) continue;
+                    float my = b - (v - minV[pi]) / range * ch;
+                    int col = propColor(pi);
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(withAlpha(col, (int)(50*ma)));
+                    canvas.drawCircle(mx, my, dp(7), paint);
+                    paint.setColor(col);
+                    canvas.drawCircle(mx, my, dp(3), paint);
+                }
+                // Label de T
+                paint.setStyle(Paint.Style.FILL);
+                paint.setTextSize(dp(9));
+                paint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                paint.setColor(withAlpha(accentColor, (int)(220*ma)));
+                canvas.drawText(String.format(Locale.US, "%.1f°C", currentTemp), mx + dp(4), t + dp(12), paint);
+            }
+
+            // Eje X labels
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextSize(dp(8.5f));
+            paint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            paint.setColor(withAlpha(accentColor, 150));
+            for (int si = 0; si <= 4; si++) {
+                double T = tMin + (tMax - tMin) * si / 4.0;
+                float x = l + cw * si / 4f;
+                canvas.drawText(String.format(Locale.US, "%.0f°", T), x - dp(6), b + dp(13), paint);
+            }
+            paint.setTextSize(dp(8));
+            paint.setColor(withAlpha(accentColor, 120));
+            canvas.drawText("T (°C)", l + cw/2f - dp(10), b + dp(21), paint);
+            paint.setColor(withAlpha(COLOR_MUTED, 140));
+            canvas.drawText("(normalizado)", r - dp(28), t + dp(10), paint);
         }
     }
 
